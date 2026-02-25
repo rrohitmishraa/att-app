@@ -354,41 +354,7 @@ export default function Attendance() {
 
               // Fallback to old single time field
               {
-                (() => {
-                  const [year, month, day] = selectedDate.split("-");
-                  const localDate = new Date(
-                    Number(year),
-                    Number(month) - 1,
-                    Number(day),
-                  );
-
-                  const currentDayName = DAYS[localDate.getDay()];
-
-                  if (
-                    Array.isArray(batch.schedule) &&
-                    batch.schedule.length > 0
-                  ) {
-                    const todaySchedule = batch.schedule.find(
-                      (s) => s.day === currentDayName,
-                    );
-
-                    if (todaySchedule?.time) {
-                      return (
-                        <span className="text-xs text-gray-500 bg-slate-100 px-3 py-1 rounded-full">
-                          {todaySchedule.time}
-                        </span>
-                      );
-                    }
-
-                    return (
-                      <span className="text-xs text-gray-400 bg-slate-100 px-3 py-1 rounded-full">
-                        No class
-                      </span>
-                    );
-                  }
-
-                  return null;
-                })();
+                renderBatchTime(batch);
               }
 
               return null;
@@ -468,6 +434,35 @@ export default function Attendance() {
         </div>
       </div>
     );
+  };
+
+  const renderBatchTime = (batch) => {
+    const [year, month, day] = selectedDate.split("-");
+    const localDate = new Date(Number(year), Number(month) - 1, Number(day));
+
+    const currentDayName = DAYS[localDate.getDay()];
+
+    if (Array.isArray(batch.schedule) && batch.schedule.length > 0) {
+      const todaySchedule = batch.schedule.find(
+        (s) => s.day === currentDayName,
+      );
+
+      if (todaySchedule?.time) {
+        return (
+          <span className="text-xs text-gray-500 bg-slate-100 px-3 py-1 rounded-full">
+            {todaySchedule.time}
+          </span>
+        );
+      }
+
+      return (
+        <span className="text-xs text-gray-400 bg-slate-100 px-3 py-1 rounded-full">
+          No class
+        </span>
+      );
+    }
+
+    return null;
   };
 
   return (
