@@ -17,7 +17,6 @@ import Navbar from "../components/Navbar";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/* ===== STABLE COLLECTION REFS (CRITICAL FIX) ===== */
 const studentsRef = collection(db, "students");
 const batchesRef = collection(db, "batches");
 const attendanceRef = collection(db, "attendance");
@@ -92,7 +91,7 @@ export default function Attendance() {
     fetchData();
   }, [fetchData]);
 
-  /* ================= ATTENDANCE ================= */
+  /* ================= MARK ATTENDANCE ================= */
 
   const saveAttendance = async (student) => {
     setLoadingStudent(student.id);
@@ -111,27 +110,44 @@ export default function Attendance() {
       return updated;
     });
 
-    /* ===== EXTERNAL ===== */
+    /* ===== EXTERNAL (FIXED CYCLE LOGIC) ===== */
     if (student.type === "external") {
-      const current = student.classesCompleted || 0;
-      const newCount = current + 1;
+      const newTotal = (student.totalClassesCompleted || 0) + 1;
+      const newCompleted = newTotal % 8;
 
       await updateDoc(doc(db, "students", student.id), {
-        classesCompleted: newCount >= 8 ? 0 : newCount,
-        totalClassesCompleted: (student.totalClassesCompleted || 0) + 1,
+        totalClassesCompleted: newTotal,
+        classesCompleted: newCompleted,
       });
 
-      if (newCount >= 8) {
-        await updateDoc(doc(db, "batches", student.batchId), {
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === student.id
+            ? {
+                ...s,
+                totalClassesCompleted: newTotal,
+                classesCompleted: newCompleted,
+              }
+            : s,
+        ),
+      );
+
+      if (newCompleted === 0) {
+        await updateDoc(doc(db, "students", student.id), {
           externalAlert: true,
         });
+
+        setStudents((prev) =>
+          prev.map((s) =>
+            s.id === student.id ? { ...s, externalAlert: true } : s,
+          ),
+        );
       }
     }
 
     /* ===== PERSONAL ===== */
     if (student.type === "personal") {
-      const current = student.classesSinceRenewal || 0;
-      const newCount = current + 1;
+      const newCount = (student.classesSinceRenewal || 0) + 1;
       const limit = student.reminderAfterClasses || 8;
 
       await updateDoc(doc(db, "students", student.id), {
@@ -163,7 +179,7 @@ export default function Attendance() {
     setConfirmStudent(null);
   };
 
-  /* ================= UNDO (FIXED COUNTER REVERSAL) ================= */
+  /* ================= UNDO (FIXED) ================= */
 
   const undoAttendance = async (student) => {
     const records = attendanceMap[student.id];
@@ -175,52 +191,58 @@ export default function Attendance() {
     await deleteDoc(doc(db, "attendance", lastRecord.id));
 
     if (student.type === "external") {
+      const newTotal = Math.max(0, (student.totalClassesCompleted || 0) - 1);
+      const newCompleted = newTotal % 8;
+
       await updateDoc(doc(db, "students", student.id), {
-        classesCompleted: Math.max(0, (student.classesCompleted || 0) - 1),
-        totalClassesCompleted: Math.max(
-          0,
-          (student.totalClassesCompleted || 0) - 1,
-        ),
+        totalClassesCompleted: newTotal,
+        classesCompleted: newCompleted,
       });
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === student.id
+            ? {
+                ...s,
+                totalClassesCompleted: newTotal,
+                classesCompleted: newCompleted,
+              }
+            : s,
+        ),
+      );
+
+      if (newCompleted !== 0) {
+        await updateDoc(doc(db, "students", student.id), {
+          externalAlert: false,
+        });
+
+        setStudents((prev) =>
+          prev.map((s) =>
+            s.id === student.id ? { ...s, externalAlert: false } : s,
+          ),
+        );
+      }
     }
 
     if (student.type === "personal") {
+      const newSinceRenewal = Math.max(
+        0,
+        (student.classesSinceRenewal || 0) - 1,
+      );
+
       await updateDoc(doc(db, "students", student.id), {
-        classesSinceRenewal: Math.max(
-          0,
-          (student.classesSinceRenewal || 0) - 1,
-        ),
+        classesSinceRenewal: newSinceRenewal,
       });
+
+      if (newSinceRenewal < (student.reminderAfterClasses || 8)) {
+        await updateDoc(doc(db, "batches", student.batchId), {
+          paymentPending: false,
+        });
+      }
     }
 
     await fetchData();
     setLoadingStudent(null);
-  };
-
-  /* ================= CANCEL BATCH ================= */
-
-  const cancelBatchForDate = async (batch) => {
-    if (!window.confirm("Cancel this batch for this date?")) return;
-
-    await addDoc(cancellationsRef, {
-      batchId: batch.id,
-      date: selectedDate,
-      reason: "Teacher Absent",
-      createdAt: serverTimestamp(),
-    });
-
-    fetchData();
-  };
-
-  const revertBatchCancellation = async (batch) => {
-    const snap = await getDocs(cancellationsRef);
-    const match = snap.docs.find(
-      (d) => d.data().batchId === batch.id && d.data().date === selectedDate,
-    );
-    if (!match) return;
-
-    await deleteDoc(doc(db, "batchCancellations", match.id));
-    fetchData();
   };
 
   /* ================= SORTING ================= */
@@ -263,7 +285,6 @@ export default function Attendance() {
           <div>
             <div className="flex items-center gap-3">
               <h3 className="text-lg font-semibold">{batch.batchName}</h3>
-
               {isCancelled && (
                 <span className="text-xs text-red-600 font-medium">
                   Cancelled (Teacher Absent)
@@ -284,61 +305,19 @@ export default function Attendance() {
                 {batch.time}
               </span>
             )}
-
-            {batch.externalAlert && (
-              <button
-                onClick={async () => {
-                  await updateDoc(doc(db, "batches", batch.id), {
-                    externalAlert: false,
-                  });
-                  fetchData();
-                }}
-                className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full"
-              >
-                Clear Alert
-              </button>
-            )}
-
-            {isCancelled ? (
-              <button
-                onClick={() => revertBatchCancellation(batch)}
-                className="text-xs bg-red-100 text-red-600 px-3 py-1 rounded-full"
-              >
-                Undo Cancel
-              </button>
-            ) : (
-              <button
-                onClick={() => cancelBatchForDate(batch)}
-                className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full"
-              >
-                Cancel Batch
-              </button>
-            )}
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {batch.students.map((student) => {
             const records = attendanceMap[student.id] || [];
+            const marked = records.length > 0;
             const count = records.length;
-            const marked = count > 0;
-            const limit = student.reminderAfterClasses || 8;
-            const personalLimitReached =
-              student.type === "personal" &&
-              (student.classesSinceRenewal || 0) >= limit;
 
             return (
               <div
                 key={student.id}
-                className={`flex justify-between items-center border rounded-xl px-4 py-4 ${
-                  isCancelled
-                    ? "bg-red-50 border-red-300"
-                    : personalLimitReached
-                      ? "bg-orange-50 border-orange-400"
-                      : marked
-                        ? "bg-green-50 border-green-300"
-                        : "bg-slate-50 border-slate-200"
-                }`}
+                className="flex justify-between items-center border rounded-xl px-4 py-4 bg-slate-50 border-slate-200"
               >
                 <div className="flex flex-col">
                   <span className="font-medium">{student.name}</span>
@@ -349,78 +328,49 @@ export default function Attendance() {
                     </span>
                   )}
 
-                  {student.type === "personal" && (
-                    <span className="text-xs text-slate-600">
-                      {student.classesSinceRenewal || 0} / {limit}
-                    </span>
-                  )}
-
                   <span className="text-xs text-gray-500">
-                    {count} marked today
+                    {count} attendance marked today
                   </span>
                 </div>
 
+                {student.externalAlert && (
+                  <button
+                    onClick={async () => {
+                      await updateDoc(doc(db, "students", student.id), {
+                        externalAlert: false,
+                      });
+
+                      setStudents((prev) =>
+                        prev.map((s) =>
+                          s.id === student.id
+                            ? { ...s, externalAlert: false }
+                            : s,
+                        ),
+                      );
+                    }}
+                    className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full"
+                  >
+                    Clear Alert
+                  </button>
+                )}
+
                 <div className="flex items-center gap-2">
                   <button
-                    disabled={isCancelled || loadingStudent === student.id}
+                    disabled={loadingStudent === student.id}
                     onClick={() => markAttendance(student)}
                     className={`p-2 rounded-lg ${
-                      isCancelled
-                        ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                        : loadingStudent === student.id
-                          ? "bg-gray-400"
-                          : marked
-                            ? "bg-green-600 text-white"
-                            : "bg-black text-white"
+                      marked ? "bg-green-600 text-white" : "bg-black text-white"
                     }`}
                   >
                     <Check size={16} />
                   </button>
 
-                  {marked && !isCancelled && (
+                  {marked && (
                     <button
-                      disabled={loadingStudent === student.id}
                       onClick={() => undoAttendance(student)}
                       className="p-2 rounded-lg bg-red-500 text-white"
                     >
                       <Undo2 size={16} />
-                    </button>
-                  )}
-
-                  {personalLimitReached && (
-                    <button
-                      onClick={async () => {
-                        const remainder =
-                          (student.classesSinceRenewal || 0) % limit;
-
-                        await updateDoc(doc(db, "students", student.id), {
-                          classesSinceRenewal: remainder,
-                        });
-
-                        await updateDoc(doc(db, "batches", student.batchId), {
-                          paymentPending: false,
-                        });
-
-                        fetchData();
-                      }}
-                      className="text-xs bg-green-600 text-white px-3 py-1 rounded-full"
-                    >
-                      Mark Paid
-                    </button>
-                  )}
-
-                  {student.type === "external" && (
-                    <button
-                      onClick={async () => {
-                        if (!window.confirm("Reset class counter?")) return;
-                        await updateDoc(doc(db, "students", student.id), {
-                          classesCompleted: 0,
-                        });
-                        fetchData();
-                      }}
-                      className="text-xs text-blue-600 underline"
-                    >
-                      Reset
                     </button>
                   )}
                 </div>
@@ -435,6 +385,7 @@ export default function Attendance() {
   return (
     <>
       <Navbar />
+
       <div className="min-h-screen bg-slate-50 px-6 py-12">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-[320px_1fr] gap-16">
           <div className="lg:sticky lg:top-12 h-fit bg-white p-6 rounded-2xl border">
