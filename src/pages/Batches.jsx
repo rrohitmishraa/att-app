@@ -9,7 +9,7 @@ import {
   serverTimestamp,
   doc,
 } from "firebase/firestore";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Navbar from "../components/Navbar";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -29,8 +29,6 @@ export default function Batches() {
   const [editingId, setEditingId] = useState(null);
   const [editDays, setEditDays] = useState([]);
   const [editTime, setEditTime] = useState("");
-
-  const [inactiveModal, setInactiveModal] = useState(null);
 
   /* ================= FETCH ================= */
 

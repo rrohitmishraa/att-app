@@ -83,7 +83,7 @@ export default function Attendance() {
     setBatches(batchData);
     setAttendanceMap(map);
     setCancelledBatches(cancelMap);
-  }, [selectedDate]);
+  }, [selectedDate, attendanceRef, batchesRef, cancellationsRef, studentsRef]);
 
   useEffect(() => {
     fetchData();
