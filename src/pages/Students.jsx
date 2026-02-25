@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { db } from "../firebase";
 import {
   collection,
@@ -19,18 +20,24 @@ const batchesRef = collection(db, "batches");
 export default function Students() {
   const [students, setStudents] = useState([]);
   const [batches, setBatches] = useState([]);
+  const [search, setSearch] = useState("");
+
+  const navigate = useNavigate();
 
   const [name, setName] = useState("");
   const [type, setType] = useState("external");
   const [batch, setBatch] = useState("");
   const [classDays, setClassDays] = useState([]);
   const [time, setTime] = useState("07:00");
+
+  /* ✅ NEW: per-day times */
+  const [dayTimes, setDayTimes] = useState({});
+
   const [reminderAfter, setReminderAfter] = useState(8);
   const [sharePer8, setSharePer8] = useState(1800);
 
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
-  // const [showSuggestions, setShowSuggestions] = useState(false);
   const [filter, setFilter] = useState("all");
 
   /* ================= FETCH ================= */
@@ -59,7 +66,7 @@ export default function Students() {
     fetchData();
   }, []);
 
-  /* ================= ACTIVE COUNTS (ADDED ONLY) ================= */
+  /* ================= ACTIVE COUNTS ================= */
 
   const activeCounts = useMemo(() => {
     const activeStudents = students.filter((s) => s.active);
@@ -78,8 +85,7 @@ export default function Students() {
     const [h, m] = t.split(":");
     const hour = parseInt(h, 10);
     const minute = parseInt(m, 10);
-    if (minute === 0) return `${hour}`;
-    return `${hour}${minute}`;
+    return minute === 0 ? `${hour}` : `${hour}${minute}`;
   };
 
   const toggleDay = (day) => {
@@ -91,14 +97,21 @@ export default function Students() {
   /* ================= AUTO BATCH ================= */
 
   useEffect(() => {
-    if (!classDays.length) return;
+    // 🔥 If no days selected → clear batch name
+    if (!classDays.length) {
+      setBatch("");
+      return;
+    }
 
     const prefix = type === "personal" ? "P-" : "Ex-";
     const dayCode = classDays.map((d) => d[0]).join("");
-    const formattedTime = formatTime(time);
+
+    const firstDay = classDays[0];
+    const firstTime = dayTimes[firstDay] || time;
+    const formattedTime = formatTime(firstTime);
 
     setBatch(`${prefix}${dayCode}${formattedTime}`);
-  }, [classDays, time, type]);
+  }, [classDays, dayTimes, time, type]);
 
   /* ================= ADD MULTIPLE ================= */
 
@@ -116,11 +129,18 @@ export default function Students() {
     let existingBatch = batches.find((b) => b.batchName === batch);
 
     if (!existingBatch) {
+      /* ✅ NEW: build schedule with per-day time */
+      const schedule = classDays.map((day) => ({
+        day,
+        time: dayTimes[day] || time,
+      }));
+
       const newBatch = {
         batchName: batch,
         type,
         classDays,
         time,
+        schedule, // added
         createdAt: serverTimestamp(),
       };
 
@@ -154,7 +174,7 @@ export default function Students() {
     setBatch("");
     setClassDays([]);
     setTime("07:00");
-    // setShowSuggestions(false);
+    setDayTimes({});
 
     fetchData();
   };
@@ -200,9 +220,34 @@ export default function Students() {
   /* ================= FILTER ================= */
 
   const filteredStudents = useMemo(() => {
-    if (filter === "all") return students;
-    return students.filter((s) => s.type === filter);
-  }, [students, filter]);
+    let result = students;
+
+    // Filter by type buttons
+    if (filter !== "all") {
+      result = result.filter((s) => s.type === filter);
+    }
+
+    // Search filtering
+    if (search.trim()) {
+      const term = search.toLowerCase();
+
+      result = result.filter((s) => {
+        const batch = batches.find((b) => b.id === s.batchId);
+
+        const nameMatch = s.name?.toLowerCase().includes(term);
+        const batchMatch = s.batchName?.toLowerCase().includes(term);
+        const typeMatch = s.type?.toLowerCase().includes(term);
+
+        const dayMatch = batch?.classDays?.some((day) =>
+          day.toLowerCase().includes(term),
+        );
+
+        return nameMatch || batchMatch || typeMatch || dayMatch;
+      });
+    }
+
+    return result;
+  }, [students, batches, filter, search]);
 
   /* ================= UI ================= */
 
@@ -221,53 +266,69 @@ export default function Students() {
             <form onSubmit={handleAdd} className="space-y-4 sm:space-y-5">
               <textarea
                 className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm sm:text-base"
-                placeholder="Student Name (one per line or comma separated)"
+                placeholder="Student Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
 
+              <p className="text-xs text-slate-500 -mt-2">
+                You can add multiple students separated by commas or new lines.
+              </p>
+
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className={`w-full border rounded-xl px-4 py-3 text-sm sm:text-base ${
-                  type === "personal"
-                    ? "bg-blue-100 border-blue-400 text-blue-700"
-                    : "bg-red-100 border-red-400 text-red-700"
-                }`}
+                className="w-full border rounded-xl px-4 py-3"
               >
                 <option value="external">External</option>
                 <option value="personal">Personal</option>
               </select>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-2">
                 {DAYS.map((day) => (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => toggleDay(day)}
-                    className={`px-3 py-1 text-xs sm:text-sm rounded-full border ${
-                      classDays.includes(day)
-                        ? "bg-indigo-600 text-white"
-                        : "bg-white"
-                    }`}
-                  >
-                    {day}
-                  </button>
+                  <div key={day} className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleDay(day)}
+                      className={`px-3 py-1 rounded-full border ${
+                        classDays.includes(day)
+                          ? "bg-indigo-600 text-white"
+                          : "bg-white"
+                      }`}
+                    >
+                      {day}
+                    </button>
+
+                    {classDays.includes(day) && (
+                      <input
+                        type="time"
+                        value={dayTimes[day] || time}
+                        onChange={(e) =>
+                          setDayTimes({
+                            ...dayTimes,
+                            [day]: e.target.value,
+                          })
+                        }
+                        className="border rounded-lg px-2 py-1"
+                      />
+                    )}
+                  </div>
                 ))}
               </div>
 
-              <input
+              {/* <input
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full/2 min-w-0 max-w-full border border-slate-300 rounded-xl px-4 py-3 text-sm sm:text-base"
-              />
+                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+              /> */}
 
               <input
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm sm:text-base"
+                className="w-full border border-slate-300 rounded-xl px-4 py-3"
                 value={batch}
                 onChange={(e) => setBatch(e.target.value)}
+                placeholder="Batch Name"
                 required
               />
 
@@ -276,20 +337,18 @@ export default function Students() {
                   type="number"
                   value={reminderAfter}
                   onChange={(e) => setReminderAfter(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm sm:text-base"
-                  placeholder="Reminder After X Classes"
+                  className="w-full border border-slate-300 rounded-xl px-4 py-3"
                 />
               ) : (
                 <input
                   type="number"
                   value={sharePer8}
                   onChange={(e) => setSharePer8(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm sm:text-base"
-                  placeholder="Your Share per 8 Classes"
+                  className="w-full border border-slate-300 rounded-xl px-4 py-3"
                 />
               )}
 
-              <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-sm sm:text-base">
+              <button className="w-full bg-indigo-600 text-white py-3 rounded-xl">
                 Add Student
               </button>
             </form>
@@ -298,6 +357,14 @@ export default function Students() {
           {/* STUDENTS GRID */}
           <div>
             <h2 className="text-xl sm:text-2xl font-semibold mb-4">Students</h2>
+
+            <input
+              type="text"
+              placeholder="Search by name, batch or type..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full mb-6 border border-slate-300 rounded-xl px-4 py-3 text-sm sm:text-base"
+            />
 
             <div className="flex flex-wrap gap-3 mb-6">
               {["all", "personal", "external"].map((cat) => (
@@ -383,7 +450,12 @@ export default function Students() {
 
                               return (
                                 <div
-                                  className={`mt-2 inline-block px-3 py-1 text-xs sm:text-sm rounded-full border ${
+                                  onClick={() =>
+                                    navigate(
+                                      `/batches?search=${encodeURIComponent(s.batchName)}`,
+                                    )
+                                  }
+                                  className={`mt-2 inline-block px-3 py-1 text-xs sm:text-sm rounded-full border cursor-pointer hover:scale-105 transition ${
                                     s.type === "personal"
                                       ? "bg-blue-100 border-blue-300"
                                       : "bg-red-100 border-red-300"

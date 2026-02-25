@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { db } from "../firebase";
+import Modal from "../components/Modal";
 
 import {
   collection,
@@ -439,44 +440,36 @@ export default function Attendance() {
             )}
           </div>
         </div>
-
-        <AnimatePresence>
-          {confirmStudent && (
-            <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div
-                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        <Modal
+          isOpen={!!confirmStudent}
+          onClose={() => setConfirmStudent(null)}
+          title="Already Marked"
+          footer={
+            <>
+              <button
                 onClick={() => setConfirmStudent(null)}
-              />
-              <motion.div className="relative bg-white w-[90%] max-w-md rounded-2xl shadow-2xl p-6 z-10">
-                <h3 className="text-lg font-semibold mb-4">Already Marked</h3>
+                className="px-4 py-2 border rounded-lg"
+              >
+                Cancel
+              </button>
 
-                <p className="text-sm text-gray-600 mb-6">
-                  Attendance already marked{" "}
-                  <strong>
-                    {(attendanceMap[confirmStudent.id] || []).length}
-                  </strong>{" "}
-                  time(s) today. Mark again?
-                </p>
-
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setConfirmStudent(null)}
-                    className="px-4 py-2 border rounded-lg"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    onClick={confirmMarkAgain}
-                    className="px-4 py-2 bg-black text-white rounded-lg"
-                  >
-                    Mark Again
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
+              <button
+                onClick={confirmMarkAgain}
+                className="px-4 py-2 bg-black text-white rounded-lg"
+              >
+                Mark Again
+              </button>
+            </>
+          }
+        >
+          {confirmStudent && (
+            <p className="text-sm text-gray-600">
+              Attendance already marked{" "}
+              <strong>{(attendanceMap[confirmStudent.id] || []).length}</strong>{" "}
+              time(s) today. Mark again?
+            </p>
           )}
-        </AnimatePresence>
+        </Modal>
       </div>
     </>
   );
