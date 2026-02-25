@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import Modal from "../components/Modal";
 import { db } from "../firebase";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   collection,
   addDoc,
@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { motion } from "framer-motion";
 import Navbar from "../components/Navbar";
+import Card from "../components/Card";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -20,6 +21,7 @@ export default function Batches() {
   const batchesRef = collection(db, "batches");
   const studentsRef = collection(db, "students");
 
+  const navigate = useNavigate();
   const location = useLocation();
 
   const [search, setSearch] = useState("");
@@ -318,13 +320,23 @@ export default function Batches() {
           <div>
             <h1 className="text-3xl font-semibold mb-8">Batches</h1>
 
-            <input
-              type="text"
-              placeholder="Search by batch name, type or student..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full border border-slate-300 rounded-xl px-4 py-3 mb-6"
-            />
+            <div className="relative mb-6">
+              <input
+                type="text"
+                placeholder="Search by batch name, type or student..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full border border-slate-300 rounded-xl px-4 py-3 pr-10"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black transition"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
             <div className="flex gap-3 mb-8">
               {["all", "personal", "external"].map((cat) => (
@@ -335,166 +347,244 @@ export default function Batches() {
                     filter === cat ? "bg-black text-white" : "bg-white"
                   }`}
                 >
-                  {cat} ({batchCounts[cat]})
+                  {cat.charAt(0).toUpperCase() + cat.slice(1)} (
+                  {batchCounts[cat]})
                 </button>
               ))}
             </div>
 
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-8">
-              {filteredBatches.map((b) => {
-                const isEditing = editingId === b.id;
-                const batchStudents = students.filter(
-                  (s) => s.batchId === b.id,
-                );
-                const isInactive = batchStudents.length === 0;
+            {/* EXTERNAL BATCHES */}
+            {filteredBatches.filter((b) => b.type === "external").length >
+              0 && (
+              <div className="mb-12">
+                <h2 className="text-xl font-semibold mb-6">
+                  External Batches (
+                  {filteredBatches.filter((b) => b.type === "external").length})
+                </h2>
 
-                return (
-                  <motion.div
-                    key={b.id}
-                    layout
-                    className={`relative rounded-2xl border bg-white p-6 shadow-sm ${
-                      isInactive ? "opacity-60" : ""
-                    }`}
-                  >
-                    {/* Accent stripe */}
-                    <div
-                      className={`absolute left-0 top-0 bottom-0 w-1 ${
-                        b.type === "personal" ? "bg-indigo-500" : "bg-rose-500"
-                      }`}
-                    />
+                <div className="grid sm:grid-cols-2 xl:grid-cols-2 gap-8">
+                  {filteredBatches
+                    .filter((b) => b.type === "external")
+                    .map((b) => {
+                      const isEditing = editingId === b.id;
+                      const batchStudents = students.filter(
+                        (s) => s.batchId === b.id,
+                      );
+                      const isInactive = batchStudents.length === 0;
 
-                    <div className="font-semibold text-lg">
-                      {b.batchName}
-                      {isInactive && (
-                        <span className="ml-2 text-xs text-gray-500">
-                          (Inactive)
-                        </span>
-                      )}
-                    </div>
+                      return (
+                        <Card inactive={isInactive}>
+                          <div className="font-semibold text-lg">
+                            {b.batchName}
+                            {isInactive && (
+                              <span className="ml-2 text-xs text-gray-500">
+                                (Inactive)
+                              </span>
+                            )}
+                          </div>
 
-                    {!isEditing ? (
-                      <>
-                        <div className="text-sm mt-2 text-slate-600">
-                          {(b.schedule || [])
-                            .map((s) => `${s.day} ${s.time}`)
-                            .join(" • ")}
-                        </div>
-
-                        <div className="text-sm mt-3">
-                          Students:{" "}
-                          <span className="font-semibold">
-                            {batchStudents.length}
-                          </span>
-                        </div>
-
-                        {/* ACTIVE STUDENTS */}
-                        <div className="mt-3 space-y-1">
-                          {batchStudents
-                            .filter((s) => s.active)
-                            .map((s) => (
-                              <div
-                                key={s.id}
-                                className="text-xs bg-slate-100 px-3 py-1 rounded-lg inline-block mr-2"
-                              >
-                                {s.name}
+                          {!isEditing ? (
+                            <>
+                              <div className="text-sm mt-2 text-slate-600">
+                                {(b.schedule || [])
+                                  .map((s) => `${s.day} ${s.time}`)
+                                  .join(" • ")}
                               </div>
-                            ))}
-                        </div>
 
-                        {/* INACTIVE STUDENTS TOGGLE */}
-                        {batchStudents.some((s) => !s.active) && (
-                          <div className="mt-2">
+                              <div className="text-sm mt-3">
+                                Students:{" "}
+                                <span className="font-semibold">
+                                  {batchStudents.length}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 space-y-1">
+                                {batchStudents
+                                  .filter((s) => s.active)
+                                  .map((s) => (
+                                    <div
+                                      key={s.id}
+                                      className="text-xs bg-slate-100 px-3 py-1 rounded-lg inline-block mr-2"
+                                    >
+                                      <span
+                                        onClick={() =>
+                                          navigate(
+                                            `/students?search=${encodeURIComponent(s.name)}`,
+                                          )
+                                        }
+                                        className="cursor-pointer hover:text-indigo-600 transition"
+                                      >
+                                        {s.name}
+                                      </span>
+                                    </div>
+                                  ))}
+                              </div>
+
+                              {batchStudents.some((s) => !s.active) && (
+                                <div className="mt-2">
+                                  <button
+                                    onClick={() => setInactiveModalBatch(b)}
+                                    className="text-xs text-indigo-600"
+                                  >
+                                    Inactive Students (
+                                    {
+                                      batchStudents.filter((s) => !s.active)
+                                        .length
+                                    }
+                                    )
+                                  </button>
+                                </div>
+                              )}
+
+                              <div className="flex gap-4 mt-4">
+                                <button
+                                  onClick={() => startEdit(b)}
+                                  className="text-indigo-600 text-sm"
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  onClick={() => handleDelete(b.id)}
+                                  className="text-red-600 text-sm"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <select
+                                value={editType}
+                                onChange={(e) => setEditType(e.target.value)}
+                                className="w-full border rounded-xl px-4 py-2 mb-3"
+                              >
+                                <option value="external">External</option>
+                                <option value="personal">Personal</option>
+                              </select>
+
+                              {DAYS.map((day) => {
+                                const selected = editSchedule.find(
+                                  (s) => s.day === day,
+                                );
+
+                                return (
+                                  <div
+                                    key={day}
+                                    className="flex items-center gap-4 mt-2"
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleEditDay(day)}
+                                      className={`px-3 py-1 rounded-full border ${
+                                        selected
+                                          ? "bg-black text-white"
+                                          : "bg-white"
+                                      }`}
+                                    >
+                                      {day}
+                                    </button>
+
+                                    {selected && (
+                                      <input
+                                        type="time"
+                                        value={selected.time}
+                                        onChange={(e) =>
+                                          updateEditTime(day, e.target.value)
+                                        }
+                                        className="border rounded-lg px-3 py-1"
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+
+                              <div className="flex gap-3 mt-4">
+                                <button
+                                  onClick={() => saveEdit(b)}
+                                  className="text-green-600 text-sm"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={cancelEdit}
+                                  className="text-gray-600 text-sm"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </Card>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* PERSONAL BATCHES (AT BOTTOM) */}
+            {filteredBatches.filter((b) => b.type === "personal").length >
+              0 && (
+              <div>
+                <h2 className="text-xl font-semibold mb-6">
+                  Personal Batches (
+                  {filteredBatches.filter((b) => b.type === "personal").length})
+                </h2>
+
+                <div className="grid sm:grid-cols-2 xl:grid-cols-2 gap-8">
+                  {filteredBatches
+                    .filter((b) => b.type === "personal")
+                    .map((b) => {
+                      const batchStudents = students.filter(
+                        (s) => s.batchId === b.id,
+                      );
+                      const isInactive = batchStudents.length === 0;
+
+                      return (
+                        <Card inactive={isInactive}>
+                          <div className="font-semibold text-lg">
+                            {b.batchName}
+                            {isInactive && (
+                              <span className="ml-2 text-xs text-gray-500">
+                                (Inactive)
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-sm mt-2 text-slate-600">
+                            {(b.schedule || [])
+                              .map((s) => `${s.day} ${s.time}`)
+                              .join(" • ")}
+                          </div>
+
+                          <div className="text-sm mt-3">
+                            Students:{" "}
+                            <span className="font-semibold">
+                              {batchStudents.length}
+                            </span>
+                          </div>
+
+                          <div className="flex gap-4 mt-4">
                             <button
-                              onClick={() => setInactiveModalBatch(b)}
-                              className="text-xs text-indigo-600"
+                              onClick={() => startEdit(b)}
+                              className="text-indigo-600 text-sm"
                             >
-                              Inactive Students (
-                              {batchStudents.filter((s) => !s.active).length})
+                              Edit
+                            </button>
+
+                            <button
+                              onClick={() => handleDelete(b.id)}
+                              className="text-red-600 text-sm"
+                            >
+                              Delete
                             </button>
                           </div>
-                        )}
-
-                        <div className="flex gap-4 mt-4">
-                          <button
-                            onClick={() => startEdit(b)}
-                            className="text-indigo-600 text-sm"
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            onClick={() => handleDelete(b.id)}
-                            className="text-red-600 text-sm"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <select
-                          value={editType}
-                          onChange={(e) => setEditType(e.target.value)}
-                          className="w-full border rounded-xl px-4 py-2 mb-3"
-                        >
-                          <option value="external">External</option>
-                          <option value="personal">Personal</option>
-                        </select>
-
-                        {DAYS.map((day) => {
-                          const selected = editSchedule.find(
-                            (s) => s.day === day,
-                          );
-
-                          return (
-                            <div
-                              key={day}
-                              className="flex items-center gap-4 mt-2"
-                            >
-                              <button
-                                type="button"
-                                onClick={() => toggleEditDay(day)}
-                                className={`px-3 py-1 rounded-full border ${
-                                  selected ? "bg-black text-white" : "bg-white"
-                                }`}
-                              >
-                                {day}
-                              </button>
-
-                              {selected && (
-                                <input
-                                  type="time"
-                                  value={selected.time}
-                                  onChange={(e) =>
-                                    updateEditTime(day, e.target.value)
-                                  }
-                                  className="border rounded-lg px-3 py-1"
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-
-                        <div className="flex gap-3 mt-4">
-                          <button
-                            onClick={() => saveEdit(b)}
-                            className="text-green-600 text-sm"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            className="text-gray-600 text-sm"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </motion.div>
-                );
-              })}
-            </div>
+                        </Card>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

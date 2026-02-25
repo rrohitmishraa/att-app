@@ -27,11 +27,25 @@ export default function Attendance() {
   const [batches, setBatches] = useState([]);
   const [attendanceMap, setAttendanceMap] = useState({});
   const [cancelledBatches, setCancelledBatches] = useState({});
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const getTodayLocal = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const [selectedDate, setSelectedDate] = useState(getTodayLocal());
   const [confirmStudent, setConfirmStudent] = useState(null);
   const [loadingStudent, setLoadingStudent] = useState(null);
+
+  // ---- Helper for local ISO date (no timezone shift) ----
+  const toLocalISO = (dateObj) => {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const day = String(dateObj.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   /* ================= DATE FORMAT ================= */
 
@@ -90,6 +104,20 @@ export default function Attendance() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const formatToAMPM = (timeStr) => {
+    if (!timeStr) return "";
+
+    const [hourStr, minuteStr] = timeStr.split(":");
+    let hour = parseInt(hourStr, 10);
+    const minutes = minuteStr;
+
+    const ampm = hour >= 12 ? "PM" : "AM";
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+
+    return `${hour}:${minutes} ${ampm}`;
+  };
 
   /* ================= MARK ATTENDANCE ================= */
 
@@ -300,11 +328,71 @@ export default function Attendance() {
           </div>
 
           <div className="flex items-center gap-3">
-            {batch.time && (
-              <span className="text-xs text-gray-500 bg-slate-100 px-3 py-1 rounded-full">
-                {batch.time}
-              </span>
-            )}
+            {(() => {
+              const [year, month, day] = selectedDate.split("-");
+              const localDate = new Date(
+                Number(year),
+                Number(month) - 1,
+                Number(day),
+              );
+              const currentDayName = DAYS[localDate.getDay()];
+
+              // If batch has per-day schedule
+              if (batch.schedule && batch.schedule.length > 0) {
+                const todaySchedule = batch.schedule.find(
+                  (s) => s.day === currentDayName,
+                );
+
+                if (todaySchedule?.time) {
+                  return (
+                    <span className="text-xs text-gray-500 bg-slate-100 px-3 py-1 rounded-full">
+                      {formatToAMPM(todaySchedule.time)}
+                    </span>
+                  );
+                }
+              }
+
+              // Fallback to old single time field
+              {
+                (() => {
+                  const [year, month, day] = selectedDate.split("-");
+                  const localDate = new Date(
+                    Number(year),
+                    Number(month) - 1,
+                    Number(day),
+                  );
+
+                  const currentDayName = DAYS[localDate.getDay()];
+
+                  if (
+                    Array.isArray(batch.schedule) &&
+                    batch.schedule.length > 0
+                  ) {
+                    const todaySchedule = batch.schedule.find(
+                      (s) => s.day === currentDayName,
+                    );
+
+                    if (todaySchedule?.time) {
+                      return (
+                        <span className="text-xs text-gray-500 bg-slate-100 px-3 py-1 rounded-full">
+                          {todaySchedule.time}
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <span className="text-xs text-gray-400 bg-slate-100 px-3 py-1 rounded-full">
+                        No class
+                      </span>
+                    );
+                  }
+
+                  return null;
+                })();
+              }
+
+              return null;
+            })()}
           </div>
         </div>
 
@@ -391,16 +479,111 @@ export default function Attendance() {
           <div className="lg:sticky lg:top-12 h-fit bg-white p-6 rounded-2xl border">
             <h2 className="text-xl font-semibold mb-4">Select Date</h2>
 
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full border rounded-xl px-4 py-3"
-            />
+            {/* ===== FULL MONTH CALENDAR ===== */}
 
-            <div className="mt-4 text-sm text-gray-600">
-              {formatFullDate(selectedDate)}
-            </div>
+            {(() => {
+              const current = new Date(selectedDate);
+              const year = current.getFullYear();
+              const month = current.getMonth();
+
+              const firstDay = new Date(year, month, 1);
+              const lastDay = new Date(year, month + 1, 0);
+
+              const startDayIndex = firstDay.getDay();
+              const totalDays = lastDay.getDate();
+
+              const daysArray = [];
+
+              // Empty slots before month starts
+              for (let i = 0; i < startDayIndex; i++) {
+                daysArray.push(null);
+              }
+
+              // Actual days
+              for (let d = 1; d <= totalDays; d++) {
+                daysArray.push(new Date(year, month, d));
+              }
+
+              return (
+                <div>
+                  {/* Month Header */}
+                  <div className="flex items-center justify-between mb-4 gap-2">
+                    <button
+                      onClick={() =>
+                        setSelectedDate(
+                          toLocalISO(new Date(year, month - 1, 1)),
+                        )
+                      }
+                      className="text-sm px-2 py-1 border rounded"
+                    >
+                      ←
+                    </button>
+
+                    <div className="flex flex-col items-center">
+                      <span className="font-medium text-sm">
+                        {current.toLocaleString("default", {
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </span>
+
+                      <button
+                        onClick={() => setSelectedDate(toLocalISO(new Date()))}
+                        className="text-xs text-blue-600 hover:underline mt-1"
+                      >
+                        Today
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        setSelectedDate(
+                          toLocalISO(new Date(year, month + 1, 1)),
+                        )
+                      }
+                      className="text-sm px-2 py-1 border rounded"
+                    >
+                      →
+                    </button>
+                  </div>
+
+                  {/* Weekdays */}
+                  <div className="grid grid-cols-7 text-xs text-center text-gray-500 mb-2">
+                    {DAYS.map((d) => (
+                      <div key={d}>{d}</div>
+                    ))}
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div className="grid grid-cols-7 gap-1">
+                    {daysArray.map((day, index) => {
+                      if (!day) return <div key={index} className="h-8" />;
+
+                      const iso = toLocalISO(day);
+                      const isSelected = iso === selectedDate;
+
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedDate(iso)}
+                          className={`h-8 text-xs rounded-lg ${
+                            isSelected
+                              ? "bg-black text-white"
+                              : "hover:bg-slate-200"
+                          }`}
+                        >
+                          {day.getDate()}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 text-xs text-gray-600">
+                    {formatFullDate(selectedDate)}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div>
