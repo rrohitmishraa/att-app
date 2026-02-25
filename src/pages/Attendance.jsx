@@ -10,18 +10,20 @@ import {
   doc,
   serverTimestamp,
 } from "firebase/firestore";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Undo2 } from "lucide-react";
 import Navbar from "../components/Navbar";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export default function Attendance() {
-  const studentsRef = collection(db, "students");
-  const batchesRef = collection(db, "batches");
-  const attendanceRef = collection(db, "attendance");
-  const cancellationsRef = collection(db, "batchCancellations");
+/* ===== STABLE COLLECTION REFS (CRITICAL FIX) ===== */
+const studentsRef = collection(db, "students");
+const batchesRef = collection(db, "batches");
+const attendanceRef = collection(db, "attendance");
+const cancellationsRef = collection(db, "batchCancellations");
 
+export default function Attendance() {
   const [students, setStudents] = useState([]);
   const [batches, setBatches] = useState([]);
   const [attendanceMap, setAttendanceMap] = useState({});
@@ -30,6 +32,7 @@ export default function Attendance() {
     new Date().toISOString().split("T")[0],
   );
   const [confirmStudent, setConfirmStudent] = useState(null);
+  const [loadingStudent, setLoadingStudent] = useState(null);
 
   /* ================= DATE FORMAT ================= */
 
@@ -83,7 +86,7 @@ export default function Attendance() {
     setBatches(batchData);
     setAttendanceMap(map);
     setCancelledBatches(cancelMap);
-  }, [selectedDate, attendanceRef, batchesRef, cancellationsRef, studentsRef]);
+  }, [selectedDate]);
 
   useEffect(() => {
     fetchData();
@@ -92,6 +95,8 @@ export default function Attendance() {
   /* ================= ATTENDANCE ================= */
 
   const saveAttendance = async (student) => {
+    setLoadingStudent(student.id);
+
     const docRef = await addDoc(attendanceRef, {
       studentId: student.id,
       batchId: student.batchId,
@@ -99,7 +104,6 @@ export default function Attendance() {
       createdAt: serverTimestamp(),
     });
 
-    // 🔥 Immediately update local state
     setAttendanceMap((prev) => {
       const updated = { ...prev };
       if (!updated[student.id]) updated[student.id] = [];
@@ -107,7 +111,7 @@ export default function Attendance() {
       return updated;
     });
 
-    // ===== EXTERNAL =====
+    /* ===== EXTERNAL ===== */
     if (student.type === "external") {
       const current = student.classesCompleted || 0;
       const newCount = current + 1;
@@ -124,7 +128,7 @@ export default function Attendance() {
       }
     }
 
-    // ===== PERSONAL =====
+    /* ===== PERSONAL ===== */
     if (student.type === "personal") {
       const current = student.classesSinceRenewal || 0;
       const newCount = current + 1;
@@ -141,7 +145,8 @@ export default function Attendance() {
       }
     }
 
-    fetchData();
+    await fetchData();
+    setLoadingStudent(null);
   };
 
   const markAttendance = async (student) => {
@@ -158,13 +163,38 @@ export default function Attendance() {
     setConfirmStudent(null);
   };
 
+  /* ================= UNDO (FIXED COUNTER REVERSAL) ================= */
+
   const undoAttendance = async (student) => {
     const records = attendanceMap[student.id];
     if (!records || records.length === 0) return;
 
+    setLoadingStudent(student.id);
+
     const lastRecord = records[records.length - 1];
     await deleteDoc(doc(db, "attendance", lastRecord.id));
-    fetchData();
+
+    if (student.type === "external") {
+      await updateDoc(doc(db, "students", student.id), {
+        classesCompleted: Math.max(0, (student.classesCompleted || 0) - 1),
+        totalClassesCompleted: Math.max(
+          0,
+          (student.totalClassesCompleted || 0) - 1,
+        ),
+      });
+    }
+
+    if (student.type === "personal") {
+      await updateDoc(doc(db, "students", student.id), {
+        classesSinceRenewal: Math.max(
+          0,
+          (student.classesSinceRenewal || 0) - 1,
+        ),
+      });
+    }
+
+    await fetchData();
+    setLoadingStudent(null);
   };
 
   /* ================= CANCEL BATCH ================= */
@@ -199,37 +229,10 @@ export default function Attendance() {
     const currentDate = new Date(selectedDate);
     const todayIndex = currentDate.getDay();
 
-    const getNextOccurrence = (batch) => {
-      if (!batch.classDays || !batch.time) return Infinity;
-
-      let closest = Infinity;
-
-      batch.classDays.forEach((day) => {
-        const targetIndex = DAYS.indexOf(day);
-        let diff = targetIndex - todayIndex;
-        if (diff < 0) diff += 7;
-
-        const nextDate = new Date(currentDate);
-        nextDate.setDate(currentDate.getDate() + diff);
-
-        const [h, m] = batch.time.split(":");
-        nextDate.setHours(parseInt(h), parseInt(m), 0, 0);
-
-        if (nextDate >= currentDate) {
-          closest = Math.min(closest, nextDate.getTime());
-        }
-      });
-
-      return closest;
-    };
-
     const mapped = batches.map((batch) => ({
       ...batch,
       students: students.filter((s) => s.batchId === batch.id),
-      nextOccurrence: getNextOccurrence(batch),
     }));
-
-    mapped.sort((a, b) => a.nextOccurrence - b.nextOccurrence);
 
     const todayList = mapped.filter((b) =>
       b.classDays?.includes(DAYS[todayIndex]),
@@ -239,10 +242,7 @@ export default function Attendance() {
       (b) => !b.classDays?.includes(DAYS[todayIndex]),
     );
 
-    return {
-      todayBatches: todayList,
-      upcomingBatches: upcomingList,
-    };
+    return { todayBatches: todayList, upcomingBatches: upcomingList };
   }, [batches, students, selectedDate]);
 
   /* ================= UI ================= */
@@ -362,14 +362,16 @@ export default function Attendance() {
 
                 <div className="flex items-center gap-2">
                   <button
-                    disabled={isCancelled}
+                    disabled={isCancelled || loadingStudent === student.id}
                     onClick={() => markAttendance(student)}
                     className={`p-2 rounded-lg ${
                       isCancelled
                         ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                        : marked
-                          ? "bg-green-600 text-white"
-                          : "bg-black text-white"
+                        : loadingStudent === student.id
+                          ? "bg-gray-400"
+                          : marked
+                            ? "bg-green-600 text-white"
+                            : "bg-black text-white"
                     }`}
                   >
                     <Check size={16} />
@@ -377,6 +379,7 @@ export default function Attendance() {
 
                   {marked && !isCancelled && (
                     <button
+                      disabled={loadingStudent === student.id}
                       onClick={() => undoAttendance(student)}
                       className="p-2 rounded-lg bg-red-500 text-white"
                     >
@@ -387,8 +390,8 @@ export default function Attendance() {
                   {personalLimitReached && (
                     <button
                       onClick={async () => {
-                        const current = student.classesSinceRenewal || 0;
-                        const remainder = current % limit;
+                        const remainder =
+                          (student.classesSinceRenewal || 0) % limit;
 
                         await updateDoc(doc(db, "students", student.id), {
                           classesSinceRenewal: remainder,
@@ -434,7 +437,7 @@ export default function Attendance() {
       <Navbar />
       <div className="min-h-screen bg-slate-50 px-6 py-12">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-[320px_1fr] gap-16">
-          <div className="lg:sticky lg:top-12 h-fit bg-white p-6 rounded-2xl border w-screen/2">
+          <div className="lg:sticky lg:top-12 h-fit bg-white p-6 rounded-2xl border">
             <h2 className="text-xl font-semibold mb-4">Select Date</h2>
 
             <input
