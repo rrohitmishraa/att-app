@@ -92,11 +92,19 @@ export default function Attendance() {
   /* ================= ATTENDANCE ================= */
 
   const saveAttendance = async (student) => {
-    await addDoc(attendanceRef, {
+    const docRef = await addDoc(attendanceRef, {
       studentId: student.id,
       batchId: student.batchId,
       date: selectedDate,
       createdAt: serverTimestamp(),
+    });
+
+    // 🔥 Immediately update local state
+    setAttendanceMap((prev) => {
+      const updated = { ...prev };
+      if (!updated[student.id]) updated[student.id] = [];
+      updated[student.id].push({ id: docRef.id });
+      return updated;
     });
 
     // ===== EXTERNAL =====
