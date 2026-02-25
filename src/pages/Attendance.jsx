@@ -12,7 +12,6 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import { motion, AnimatePresence } from "framer-motion";
 import { Check, Undo2 } from "lucide-react";
 import Navbar from "../components/Navbar";
 
