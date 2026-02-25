@@ -105,6 +105,32 @@ export default function Attendance() {
     fetchData();
   }, [fetchData]);
 
+  const resetStudentClasses = async (student) => {
+    const confirm = window.confirm(`Reset class count for ${student.name}?`);
+
+    if (!confirm) return;
+
+    if (student.type === "external") {
+      await updateDoc(doc(db, "students", student.id), {
+        totalClassesCompleted: 0,
+        classesCompleted: 0,
+        externalAlert: false,
+      });
+    }
+
+    if (student.type === "personal") {
+      await updateDoc(doc(db, "students", student.id), {
+        classesSinceRenewal: 0,
+      });
+
+      await updateDoc(doc(db, "batches", student.batchId), {
+        paymentPending: false,
+      });
+    }
+
+    await fetchData();
+  };
+
   const formatToAMPM = (timeStr) => {
     if (!timeStr) return "";
 
@@ -275,22 +301,32 @@ export default function Attendance() {
 
   /* ================= SORTING ================= */
 
-  const { todayBatches, upcomingBatches } = useMemo(() => {
+  const { todayBatches } = useMemo(() => {
     const currentDate = new Date(selectedDate);
     const todayIndex = currentDate.getDay();
+    const todayName = DAYS[todayIndex];
 
-    const mapped = batches.map((batch) => ({
-      ...batch,
-      students: students.filter((s) => s.batchId === batch.id),
-    }));
+    const mapped = batches.map((batch) => {
+      const todaySchedule = batch.schedule?.find((s) => s.day === todayName);
 
-    const todayList = mapped.filter((b) =>
-      b.classDays?.includes(DAYS[todayIndex]),
-    );
+      return {
+        ...batch,
+        students: students.filter((s) => s.batchId === batch.id),
+        todayTime: todaySchedule?.time || null,
+      };
+    });
 
-    const upcomingList = mapped.filter(
-      (b) => !b.classDays?.includes(DAYS[todayIndex]),
-    );
+    const sortByTime = (a, b) => {
+      if (!a.todayTime) return 1;
+      if (!b.todayTime) return -1;
+      return a.todayTime.localeCompare(b.todayTime);
+    };
+
+    const todayList = mapped
+      .filter((b) => b.todayTime !== null)
+      .sort(sortByTime);
+
+    const upcomingList = mapped.filter((b) => b.todayTime === null);
 
     return { todayBatches: todayList, upcomingBatches: upcomingList };
   }, [batches, students, selectedDate]);
@@ -303,11 +339,13 @@ export default function Attendance() {
 
     return (
       <div
-        className={`border rounded-2xl p-6 shadow-sm ${
-          highlight
-            ? "bg-orange-50 border-orange-400"
-            : "bg-white border-slate-200"
-        }`}
+        className={`border-2 rounded-2xl p-6 shadow-sm bg-white ${
+          batch.type === "external"
+            ? "border-red-500"
+            : batch.type === "personal"
+              ? "border-blue-500"
+              : "border-slate-200"
+        } ${highlight ? "ring-2 ring-orange-400" : ""}`}
       >
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -351,12 +389,6 @@ export default function Attendance() {
                   );
                 }
               }
-
-              // Fallback to old single time field
-              {
-                renderBatchTime(batch);
-              }
-
               return null;
             })()}
           </div>
@@ -427,6 +459,13 @@ export default function Attendance() {
                       <Undo2 size={16} />
                     </button>
                   )}
+
+                  <button
+                    onClick={() => resetStudentClasses(student)}
+                    className="p-2 rounded-lg bg-yellow-500 text-white text-xs"
+                  >
+                    Reset
+                  </button>
                 </div>
               </div>
             );
@@ -434,35 +473,6 @@ export default function Attendance() {
         </div>
       </div>
     );
-  };
-
-  const renderBatchTime = (batch) => {
-    const [year, month, day] = selectedDate.split("-");
-    const localDate = new Date(Number(year), Number(month) - 1, Number(day));
-
-    const currentDayName = DAYS[localDate.getDay()];
-
-    if (Array.isArray(batch.schedule) && batch.schedule.length > 0) {
-      const todaySchedule = batch.schedule.find(
-        (s) => s.day === currentDayName,
-      );
-
-      if (todaySchedule?.time) {
-        return (
-          <span className="text-xs text-gray-500 bg-slate-100 px-3 py-1 rounded-full">
-            {todaySchedule.time}
-          </span>
-        );
-      }
-
-      return (
-        <span className="text-xs text-gray-400 bg-slate-100 px-3 py-1 rounded-full">
-          No class
-        </span>
-      );
-    }
-
-    return null;
   };
 
   return (
@@ -596,24 +606,6 @@ export default function Attendance() {
                   ))}
                 </div>
               </>
-            )}
-
-            {todayBatches.length > 0 && upcomingBatches.length > 0 && (
-              <div className="my-12 flex items-center gap-4">
-                <div className="flex-1 h-px bg-gray-300" />
-                <span className="text-xs text-gray-500 uppercase tracking-wider">
-                  Upcoming
-                </span>
-                <div className="flex-1 h-px bg-gray-300" />
-              </div>
-            )}
-
-            {upcomingBatches.length > 0 && (
-              <div className="space-y-10">
-                {upcomingBatches.map((batch) => (
-                  <BatchBlock key={batch.id} batch={batch} />
-                ))}
-              </div>
             )}
           </div>
         </div>

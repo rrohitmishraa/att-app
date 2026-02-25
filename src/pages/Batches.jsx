@@ -35,7 +35,7 @@ export default function Batches() {
   const [schedule, setSchedule] = useState([]);
   const [filter, setFilter] = useState("all");
 
-  const [editingId, setEditingId] = useState(null);
+  const [editingBatch, setEditingBatch] = useState(null);
   const [editSchedule, setEditSchedule] = useState([]);
   const [editType, setEditType] = useState("external");
 
@@ -127,24 +127,6 @@ export default function Batches() {
     );
   };
 
-  /* ===== EDIT HELPERS ===== */
-
-  const toggleEditDay = (day) => {
-    const exists = editSchedule.find((s) => s.day === day);
-
-    if (exists) {
-      setEditSchedule(editSchedule.filter((s) => s.day !== day));
-    } else {
-      setEditSchedule([...editSchedule, { day, time: "07:00" }]);
-    }
-  };
-
-  const updateEditTime = (day, newTime) => {
-    setEditSchedule(
-      editSchedule.map((s) => (s.day === day ? { ...s, time: newTime } : s)),
-    );
-  };
-
   /* ================= CREATE ================= */
 
   const handleAdd = async (e) => {
@@ -167,36 +149,34 @@ export default function Batches() {
   /* ================= EDIT ================= */
 
   const startEdit = (batch) => {
-    setEditingId(batch.id);
+    setEditingBatch(batch);
     setEditSchedule(batch.schedule || []);
     setEditType(batch.type);
   };
 
-  const saveEdit = async (batch) => {
-    if (!editSchedule.length) return;
+  const saveEdit = async () => {
+    if (!editingBatch || !editSchedule.length) return;
 
     const newBatchName = generateBatchName(editType, editSchedule);
 
-    await updateDoc(doc(db, "batches", batch.id), {
+    await updateDoc(doc(db, "batches", editingBatch.id), {
       schedule: editSchedule,
       type: editType,
       batchName: newBatchName,
     });
 
-    // update students batchName
-    const batchStudents = students.filter((s) => s.batchId === batch.id);
+    const batchStudents = students.filter((s) => s.batchId === editingBatch.id);
 
     for (let s of batchStudents) {
       await updateDoc(doc(db, "students", s.id), {
         batchName: newBatchName,
+        type: editType,
       });
     }
 
-    setEditingId(null);
+    setEditingBatch(null);
     fetchData();
   };
-
-  const cancelEdit = () => setEditingId(null);
 
   /* ================= DELETE ================= */
 
@@ -366,9 +346,11 @@ export default function Batches() {
                   {filteredBatches
                     .filter((b) => b.type === "external")
                     .map((b) => {
-                      const isEditing = editingId === b.id;
                       const batchStudents = students.filter(
                         (s) => s.batchId === b.id,
+                      );
+                      const activeStudents = batchStudents.filter(
+                        (s) => s.active,
                       );
                       const isInactive = batchStudents.length === 0;
 
@@ -383,138 +365,74 @@ export default function Batches() {
                             )}
                           </div>
 
-                          {!isEditing ? (
-                            <>
-                              <div className="text-sm mt-2 text-slate-600">
-                                {(b.schedule || [])
-                                  .map((s) => `${s.day} ${s.time}`)
-                                  .join(" • ")}
-                              </div>
+                          <>
+                            <div className="text-sm mt-2 text-slate-600">
+                              {(b.schedule || [])
+                                .map((s) => `${s.day} ${s.time}`)
+                                .join(" • ")}
+                            </div>
 
-                              <div className="text-sm mt-3">
-                                Students:{" "}
-                                <span className="font-semibold">
-                                  {batchStudents.length}
-                                </span>
-                              </div>
+                            <div className="text-sm mt-3">
+                              Students:{" "}
+                              <span className="font-semibold">
+                                {activeStudents.length}
+                              </span>
+                            </div>
 
-                              <div className="mt-3 space-y-1">
-                                {batchStudents
-                                  .filter((s) => s.active)
-                                  .map((s) => (
-                                    <div
-                                      key={s.id}
-                                      className="text-xs bg-slate-100 px-3 py-1 rounded-lg inline-block mr-2"
-                                    >
-                                      <span
-                                        onClick={() =>
-                                          navigate(
-                                            `/students?search=${encodeURIComponent(s.name)}`,
-                                          )
-                                        }
-                                        className="cursor-pointer hover:text-indigo-600 transition"
-                                      >
-                                        {s.name}
-                                      </span>
-                                    </div>
-                                  ))}
-                              </div>
-
-                              {batchStudents.some((s) => !s.active) && (
-                                <div className="mt-2">
-                                  <button
-                                    onClick={() => setInactiveModalBatch(b)}
-                                    className="text-xs text-indigo-600"
-                                  >
-                                    Inactive Students (
-                                    {
-                                      batchStudents.filter((s) => !s.active)
-                                        .length
-                                    }
-                                    )
-                                  </button>
-                                </div>
-                              )}
-
-                              <div className="flex gap-4 mt-4">
-                                <button
-                                  onClick={() => startEdit(b)}
-                                  className="text-indigo-600 text-sm"
-                                >
-                                  Edit
-                                </button>
-
-                                <button
-                                  onClick={() => handleDelete(b.id)}
-                                  className="text-red-600 text-sm"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <select
-                                value={editType}
-                                onChange={(e) => setEditType(e.target.value)}
-                                className="w-full border rounded-xl px-4 py-2 mb-3"
-                              >
-                                <option value="external">External</option>
-                                <option value="personal">Personal</option>
-                              </select>
-
-                              {DAYS.map((day) => {
-                                const selected = editSchedule.find(
-                                  (s) => s.day === day,
-                                );
-
-                                return (
+                            <div className="mt-3 space-y-1">
+                              {batchStudents
+                                .filter((s) => s.active)
+                                .map((s) => (
                                   <div
-                                    key={day}
-                                    className="flex items-center gap-4 mt-2"
+                                    key={s.id}
+                                    className="text-xs bg-slate-100 px-3 py-1 rounded-lg inline-block mr-2"
                                   >
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleEditDay(day)}
-                                      className={`px-3 py-1 rounded-full border ${
-                                        selected
-                                          ? "bg-black text-white"
-                                          : "bg-white"
-                                      }`}
+                                    <span
+                                      onClick={() =>
+                                        navigate(
+                                          `/students?search=${encodeURIComponent(s.name)}`,
+                                        )
+                                      }
+                                      className="cursor-pointer hover:text-indigo-600 transition"
                                     >
-                                      {day}
-                                    </button>
-
-                                    {selected && (
-                                      <input
-                                        type="time"
-                                        value={selected.time}
-                                        onChange={(e) =>
-                                          updateEditTime(day, e.target.value)
-                                        }
-                                        className="border rounded-lg px-3 py-1"
-                                      />
-                                    )}
+                                      {s.name}
+                                    </span>
                                   </div>
-                                );
-                              })}
+                                ))}
+                            </div>
 
-                              <div className="flex gap-3 mt-4">
+                            {batchStudents.some((s) => !s.active) && (
+                              <div className="mt-2">
                                 <button
-                                  onClick={() => saveEdit(b)}
-                                  className="text-green-600 text-sm"
+                                  onClick={() => setInactiveModalBatch(b)}
+                                  className="text-xs text-indigo-600"
                                 >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={cancelEdit}
-                                  className="text-gray-600 text-sm"
-                                >
-                                  Cancel
+                                  Inactive Students (
+                                  {
+                                    batchStudents.filter((s) => !s.active)
+                                      .length
+                                  }
+                                  )
                                 </button>
                               </div>
-                            </>
-                          )}
+                            )}
+
+                            <div className="flex gap-4 mt-4">
+                              <button
+                                onClick={() => startEdit(b)}
+                                className="text-indigo-600 text-sm"
+                              >
+                                Edit
+                              </button>
+
+                              <button
+                                onClick={() => handleDelete(b.id)}
+                                className="text-red-600 text-sm"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </>
                         </Card>
                       );
                     })}
@@ -538,6 +456,9 @@ export default function Batches() {
                       const batchStudents = students.filter(
                         (s) => s.batchId === b.id,
                       );
+                      const activeStudents = batchStudents.filter(
+                        (s) => s.active,
+                      );
                       const isInactive = batchStudents.length === 0;
 
                       return (
@@ -560,7 +481,7 @@ export default function Batches() {
                           <div className="text-sm mt-3">
                             Students:{" "}
                             <span className="font-semibold">
-                              {batchStudents.length}
+                              {activeStudents.length}
                             </span>
                           </div>
 
@@ -587,6 +508,89 @@ export default function Batches() {
             )}
           </div>
         </div>
+
+        <Modal
+          isOpen={!!editingBatch}
+          onClose={() => setEditingBatch(null)}
+          title={editingBatch ? `Edit ${editingBatch.batchName}` : ""}
+          footer={
+            <>
+              <button
+                onClick={() => setEditingBatch(null)}
+                className="px-4 py-2 border rounded-lg"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={saveEdit}
+                className="px-4 py-2 bg-black text-white rounded-lg"
+              >
+                Save Changes
+              </button>
+            </>
+          }
+        >
+          {editingBatch && (
+            <>
+              <select
+                value={editType}
+                onChange={(e) => setEditType(e.target.value)}
+                className="w-full border rounded-xl px-4 py-2 mb-4"
+              >
+                <option value="external">External</option>
+                <option value="personal">Personal</option>
+              </select>
+
+              {DAYS.map((day) => {
+                const selected = editSchedule.find((s) => s.day === day);
+
+                return (
+                  <div key={day} className="flex items-center gap-4 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const exists = editSchedule.find((s) => s.day === day);
+                        if (exists) {
+                          setEditSchedule(
+                            editSchedule.filter((s) => s.day !== day),
+                          );
+                        } else {
+                          setEditSchedule([
+                            ...editSchedule,
+                            { day, time: "07:00" },
+                          ]);
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-full border ${
+                        selected ? "bg-black text-white" : "bg-white"
+                      }`}
+                    >
+                      {day}
+                    </button>
+
+                    {selected && (
+                      <input
+                        type="time"
+                        value={selected.time}
+                        onChange={(e) =>
+                          setEditSchedule(
+                            editSchedule.map((s) =>
+                              s.day === day
+                                ? { ...s, time: e.target.value }
+                                : s,
+                            ),
+                          )
+                        }
+                        className="border rounded-lg px-3 py-1"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </Modal>
 
         <Modal
           isOpen={!!inactiveModalBatch}
