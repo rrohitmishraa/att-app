@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import Modal from "../components/Modal";
 import { db } from "../firebase";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Users } from "lucide-react";
 import {
   collection,
   addDoc,
@@ -45,7 +46,17 @@ export default function Batches() {
     const batchSnap = await getDocs(batchesRef);
     const studentSnap = await getDocs(studentsRef);
 
-    setBatches(batchSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    setBatches(
+      batchSnap.docs.map((d) => {
+        const data = d.data();
+
+        return {
+          id: d.id,
+          ...data,
+          type: data.type ? data.type.toLowerCase().trim() : "external",
+        };
+      }),
+    );
     setStudents(studentSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
   }, [batchesRef, studentsRef]);
 
@@ -67,8 +78,10 @@ export default function Batches() {
   const batchCounts = useMemo(() => {
     return {
       all: batches.length,
-      personal: batches.filter((b) => b.type === "personal").length,
-      external: batches.filter((b) => b.type === "external").length,
+      personal: batches.filter((b) => b.type?.toLowerCase() === "personal")
+        .length,
+      external: batches.filter((b) => b.type?.toLowerCase() === "external")
+        .length,
     };
   }, [batches]);
 
@@ -136,7 +149,7 @@ export default function Batches() {
     const batchName = batch.trim();
 
     await addDoc(batchesRef, {
-      type,
+      type: type.toLowerCase(),
       schedule,
       batchName,
       createdAt: serverTimestamp(),
@@ -161,7 +174,7 @@ export default function Batches() {
 
     await updateDoc(doc(db, "batches", editingBatch.id), {
       schedule: editSchedule,
-      type: editType,
+      type: editType.toLowerCase(),
       batchName: newBatchName,
     });
 
@@ -181,13 +194,6 @@ export default function Batches() {
   /* ================= DELETE ================= */
 
   const handleDelete = async (id) => {
-    const linked = students.filter((s) => s.batchId === id);
-
-    if (linked.length > 0) {
-      alert("Cannot delete batch. Students are assigned.");
-      return;
-    }
-
     if (!window.confirm("Delete this batch?")) return;
 
     await deleteDoc(doc(db, "batches", id));
@@ -199,12 +205,13 @@ export default function Batches() {
   const filteredBatches = useMemo(() => {
     let result = batches;
 
-    // Filter by type (existing logic)
+    // Case-safe type filter
     if (filter !== "all") {
-      result = result.filter((b) => b.type === filter);
+      result = result.filter(
+        (b) => b.type?.toLowerCase() === filter.toLowerCase(),
+      );
     }
 
-    // 🔥 Search logic
     if (search.trim()) {
       const query = search.toLowerCase();
 
@@ -219,9 +226,9 @@ export default function Batches() {
           s.name?.toLowerCase().includes(query),
         );
 
-        // ✅ NEW: match by day
-        const matchesDay = b.classDays?.some((day) =>
-          day.toLowerCase().includes(query),
+        // ✅ Correct day search (use schedule)
+        const matchesDay = b.schedule?.some((s) =>
+          s.day?.toLowerCase().includes(query),
         );
 
         return matchesName || matchesType || matchesStudent || matchesDay;
@@ -237,20 +244,20 @@ export default function Batches() {
     <>
       <Navbar />
 
-      <div className="min-h-screen bg-slate-50 px-4 sm:px-6 lg:px-12 py-12">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 px-4 sm:px-6 lg:px-12 py-12">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-[380px_1fr] gap-16">
           {/* LEFT PANEL */}
           <div className="lg:sticky lg:top-12 h-fit">
             <motion.form
               onSubmit={handleAdd}
-              className="bg-white border rounded-3xl p-8 shadow-sm space-y-6"
+              className="bg-white/90 backdrop-blur-md border border-blue-100 rounded-3xl p-8 shadow-md space-y-6"
             >
               <h2 className="text-xl font-semibold">Create Batch</h2>
 
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full border rounded-xl px-4 py-3"
+                className="w-full border border-blue-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
               >
                 <option value="external">External</option>
                 <option value="personal">Personal</option>
@@ -263,8 +270,10 @@ export default function Batches() {
                     <button
                       type="button"
                       onClick={() => toggleDay(day)}
-                      className={`px-3 py-1 rounded-full border ${
-                        selected ? "bg-black text-white" : "bg-white"
+                      className={`px-3 py-1 rounded-full border transition-all duration-200 ${
+                        selected
+                          ? "bg-blue-500 text-white shadow-md border-blue-500"
+                          : "bg-white border-blue-200 hover:bg-blue-50"
                       }`}
                     >
                       {day}
@@ -275,7 +284,7 @@ export default function Batches() {
                         type="time"
                         value={selected.time}
                         onChange={(e) => updateTime(day, e.target.value)}
-                        className="border rounded-lg px-3 py-1"
+                        className="border border-blue-200 rounded-lg px-3 py-1 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
                       />
                     )}
                   </div>
@@ -283,14 +292,14 @@ export default function Batches() {
               })}
 
               <input
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="w-full border border-blue-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
                 value={batch}
                 onChange={(e) => setBatch(e.target.value)}
                 placeholder="Batch Name"
                 required
               />
 
-              <button className="w-full bg-black text-white py-3 rounded-xl">
+              <button className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl shadow-md transition-all duration-200">
                 Create Batch
               </button>
             </motion.form>
@@ -306,12 +315,12 @@ export default function Batches() {
                 placeholder="Search by batch name, type or student..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 pr-10"
+                className="w-full border border-blue-200 rounded-xl px-4 py-3 pr-10 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
               />
               {search && (
                 <button
                   onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black transition"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600 transition"
                 >
                   ✕
                 </button>
@@ -323,8 +332,10 @@ export default function Batches() {
                 <button
                   key={cat}
                   onClick={() => setFilter(cat)}
-                  className={`px-4 py-2 rounded-full border ${
-                    filter === cat ? "bg-black text-white" : "bg-white"
+                  className={`px-4 py-2 rounded-full border transition-all duration-200 ${
+                    filter === cat
+                      ? "bg-blue-500 text-white shadow-md border-blue-500"
+                      : "bg-white border-blue-200 hover:bg-blue-50"
                   }`}
                 >
                   {cat.charAt(0).toUpperCase() + cat.slice(1)} (
@@ -334,17 +345,22 @@ export default function Batches() {
             </div>
 
             {/* EXTERNAL BATCHES */}
-            {filteredBatches.filter((b) => b.type === "external").length >
-              0 && (
+            {filteredBatches.filter((b) => b.type?.toLowerCase() === "external")
+              .length > 0 && (
               <div className="mb-12">
                 <h2 className="text-xl font-semibold mb-6">
                   External Batches (
-                  {filteredBatches.filter((b) => b.type === "external").length})
+                  {
+                    filteredBatches.filter(
+                      (b) => b.type?.toLowerCase() === "external",
+                    ).length
+                  }
+                  )
                 </h2>
 
                 <div className="grid sm:grid-cols-2 xl:grid-cols-2 gap-8">
                   {filteredBatches
-                    .filter((b) => b.type === "external")
+                    .filter((b) => b.type?.toLowerCase() === "external")
                     .map((b) => {
                       const batchStudents = students.filter(
                         (s) => s.batchId === b.id,
@@ -352,28 +368,45 @@ export default function Batches() {
                       const activeStudents = batchStudents.filter(
                         (s) => s.active,
                       );
-                      const isInactive = batchStudents.length === 0;
+                      const isInactive = activeStudents.length === 0;
 
                       return (
-                        <Card inactive={isInactive}>
-                          <div className="font-semibold text-lg">
-                            {b.batchName}
-                            {isInactive && (
-                              <span className="ml-2 text-xs text-gray-500">
-                                (Inactive)
-                              </span>
-                            )}
-                          </div>
+                        <Card key={b.id} inactive={isInactive}>
+                          <div className="flex flex-col h-full">
+                            <div className="flex items-start justify-between">
+                              {/* Left side */}
+                              <div className="font-semibold text-lg flex items-center gap-2">
+                                <span>{b.batchName}</span>
+                                {isInactive && (
+                                  <span className="text-xs text-gray-500">
+                                    (Inactive)
+                                  </span>
+                                )}
+                              </div>
 
-                          <>
-                            <div className="text-sm mt-2 text-slate-600">
-                              {(b.schedule || [])
-                                .map((s) => `${s.day} ${s.time}`)
-                                .join(" • ")}
+                              {/* Right side – stacked schedule */}
+                              {b.schedule?.length > 0 && (
+                                <div className="text-xs text-slate-500 text-right leading-5">
+                                  {b.schedule
+                                    .map((s) => {
+                                      if (!s.time) return null;
+                                      const [h, m] = s.time.split(":");
+                                      const hour = parseInt(h, 10);
+                                      const ampm = hour >= 12 ? "PM" : "AM";
+                                      const formattedHour =
+                                        hour % 12 === 0 ? 12 : hour % 12;
+                                      return `${s.day}: ${formattedHour}:${m} ${ampm}`;
+                                    })
+                                    .filter(Boolean)
+                                    .map((line, idx) => (
+                                      <div key={idx}>{line}</div>
+                                    ))}
+                                </div>
+                              )}
                             </div>
 
-                            <div className="text-sm mt-3">
-                              Students:{" "}
+                            <div className="flex items-center gap-2 mt-3 text-sm text-slate-700">
+                              <Users size={16} className="text-blue-500" />
                               <span className="font-semibold">
                                 {activeStudents.length}
                               </span>
@@ -385,7 +418,7 @@ export default function Batches() {
                                 .map((s) => (
                                   <div
                                     key={s.id}
-                                    className="text-xs bg-slate-100 px-3 py-1 rounded-lg inline-block mr-2"
+                                    className="text-xs bg-blue-50 border border-blue-100 px-3 py-1 rounded-lg inline-block mr-2"
                                   >
                                     <span
                                       onClick={() =>
@@ -393,7 +426,7 @@ export default function Batches() {
                                           `/students?search=${encodeURIComponent(s.name)}`,
                                         )
                                       }
-                                      className="cursor-pointer hover:text-indigo-600 transition"
+                                      className="cursor-pointer hover:text-blue-600 transition"
                                     >
                                       {s.name}
                                     </span>
@@ -405,7 +438,7 @@ export default function Batches() {
                               <div className="mt-2">
                                 <button
                                   onClick={() => setInactiveModalBatch(b)}
-                                  className="text-xs text-indigo-600"
+                                  className="text-xs text-blue-600"
                                 >
                                   Inactive Students (
                                   {
@@ -417,22 +450,22 @@ export default function Batches() {
                               </div>
                             )}
 
-                            <div className="flex gap-4 mt-4">
+                            <div className="flex gap-4 mt-auto pt-4">
                               <button
                                 onClick={() => startEdit(b)}
-                                className="text-indigo-600 text-sm"
+                                className="text-blue-600 text-sm hover:underline"
                               >
                                 Edit
                               </button>
 
                               <button
                                 onClick={() => handleDelete(b.id)}
-                                className="text-red-600 text-sm"
+                                className="text-red-500 text-sm hover:underline"
                               >
                                 Delete
                               </button>
                             </div>
-                          </>
+                          </div>
                         </Card>
                       );
                     })}
@@ -441,17 +474,22 @@ export default function Batches() {
             )}
 
             {/* PERSONAL BATCHES (AT BOTTOM) */}
-            {filteredBatches.filter((b) => b.type === "personal").length >
-              0 && (
+            {filteredBatches.filter((b) => b.type?.toLowerCase() === "personal")
+              .length > 0 && (
               <div>
                 <h2 className="text-xl font-semibold mb-6">
                   Personal Batches (
-                  {filteredBatches.filter((b) => b.type === "personal").length})
+                  {
+                    filteredBatches.filter(
+                      (b) => b.type?.toLowerCase() === "personal",
+                    ).length
+                  }
+                  )
                 </h2>
 
                 <div className="grid sm:grid-cols-2 xl:grid-cols-2 gap-8">
                   {filteredBatches
-                    .filter((b) => b.type === "personal")
+                    .filter((b) => b.type?.toLowerCase() === "personal")
                     .map((b) => {
                       const batchStudents = students.filter(
                         (s) => s.batchId === b.id,
@@ -459,46 +497,103 @@ export default function Batches() {
                       const activeStudents = batchStudents.filter(
                         (s) => s.active,
                       );
-                      const isInactive = batchStudents.length === 0;
+                      const isInactive = activeStudents.length === 0;
 
                       return (
-                        <Card inactive={isInactive}>
-                          <div className="font-semibold text-lg">
-                            {b.batchName}
-                            {isInactive && (
-                              <span className="ml-2 text-xs text-gray-500">
-                                (Inactive)
+                        <Card key={b.id} inactive={isInactive}>
+                          <div className="flex flex-col h-full">
+                            <div className="flex items-start justify-between">
+                              {/* Left side */}
+                              <div className="font-semibold text-lg flex items-center gap-2">
+                                <span>{b.batchName}</span>
+                                {isInactive && (
+                                  <span className="text-xs text-gray-500">
+                                    (Inactive)
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Right side – stacked schedule */}
+                              {b.schedule?.length > 0 && (
+                                <div className="text-xs text-slate-500 text-right leading-5">
+                                  {b.schedule
+                                    .map((s) => {
+                                      if (!s.time) return null;
+                                      const [h, m] = s.time.split(":");
+                                      const hour = parseInt(h, 10);
+                                      const ampm = hour >= 12 ? "PM" : "AM";
+                                      const formattedHour =
+                                        hour % 12 === 0 ? 12 : hour % 12;
+                                      return `${s.day}: ${formattedHour}:${m} ${ampm}`;
+                                    })
+                                    .filter(Boolean)
+                                    .map((line, idx) => (
+                                      <div key={idx}>{line}</div>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-3 text-sm text-slate-700">
+                              <Users size={16} className="text-blue-500" />
+                              <span className="font-semibold">
+                                {activeStudents.length}
                               </span>
+                            </div>
+
+                            <div className="mt-3 space-y-1">
+                              {batchStudents
+                                .filter((s) => s.active)
+                                .map((s) => (
+                                  <div
+                                    key={s.id}
+                                    className="text-xs bg-blue-50 border border-blue-100 px-3 py-1 rounded-lg inline-block mr-2"
+                                  >
+                                    <span
+                                      onClick={() =>
+                                        navigate(
+                                          `/students?search=${encodeURIComponent(s.name)}`,
+                                        )
+                                      }
+                                      className="cursor-pointer hover:text-blue-600 transition"
+                                    >
+                                      {s.name}
+                                    </span>
+                                  </div>
+                                ))}
+                            </div>
+
+                            {batchStudents.some((s) => !s.active) && (
+                              <div className="mt-2">
+                                <button
+                                  onClick={() => setInactiveModalBatch(b)}
+                                  className="text-xs text-blue-600"
+                                >
+                                  Inactive Students (
+                                  {
+                                    batchStudents.filter((s) => !s.active)
+                                      .length
+                                  }
+                                  )
+                                </button>
+                              </div>
                             )}
-                          </div>
 
-                          <div className="text-sm mt-2 text-slate-600">
-                            {(b.schedule || [])
-                              .map((s) => `${s.day} ${s.time}`)
-                              .join(" • ")}
-                          </div>
+                            <div className="flex gap-4 mt-auto pt-4">
+                              <button
+                                onClick={() => startEdit(b)}
+                                className="text-blue-600 text-sm hover:underline"
+                              >
+                                Edit
+                              </button>
 
-                          <div className="text-sm mt-3">
-                            Students:{" "}
-                            <span className="font-semibold">
-                              {activeStudents.length}
-                            </span>
-                          </div>
-
-                          <div className="flex gap-4 mt-4">
-                            <button
-                              onClick={() => startEdit(b)}
-                              className="text-indigo-600 text-sm"
-                            >
-                              Edit
-                            </button>
-
-                            <button
-                              onClick={() => handleDelete(b.id)}
-                              className="text-red-600 text-sm"
-                            >
-                              Delete
-                            </button>
+                              <button
+                                onClick={() => handleDelete(b.id)}
+                                className="text-red-500 text-sm hover:underline"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         </Card>
                       );
@@ -517,14 +612,14 @@ export default function Batches() {
             <>
               <button
                 onClick={() => setEditingBatch(null)}
-                className="px-4 py-2 border rounded-lg"
+                className="px-4 py-2 border border-blue-200 rounded-lg bg-white hover:bg-blue-50 transition"
               >
                 Cancel
               </button>
 
               <button
                 onClick={saveEdit}
-                className="px-4 py-2 bg-black text-white rounded-lg"
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow-md transition"
               >
                 Save Changes
               </button>
@@ -536,7 +631,7 @@ export default function Batches() {
               <select
                 value={editType}
                 onChange={(e) => setEditType(e.target.value)}
-                className="w-full border rounded-xl px-4 py-2 mb-4"
+                className="w-full border border-blue-200 rounded-xl px-4 py-2 mb-4 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
               >
                 <option value="external">External</option>
                 <option value="personal">Personal</option>
@@ -562,8 +657,10 @@ export default function Batches() {
                           ]);
                         }
                       }}
-                      className={`px-3 py-1 rounded-full border ${
-                        selected ? "bg-black text-white" : "bg-white"
+                      className={`px-3 py-1 rounded-full border transition-all duration-200 ${
+                        selected
+                          ? "bg-blue-500 text-white shadow-md border-blue-500"
+                          : "bg-white border-blue-200 hover:bg-blue-50"
                       }`}
                     >
                       {day}
@@ -582,7 +679,7 @@ export default function Batches() {
                             ),
                           )
                         }
-                        className="border rounded-lg px-3 py-1"
+                        className="border border-blue-200 rounded-lg px-3 py-1 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
                       />
                     )}
                   </div>
@@ -607,7 +704,7 @@ export default function Batches() {
               .map((s) => (
                 <div
                   key={s.id}
-                  className="bg-gray-100 px-3 py-2 rounded-lg text-sm mb-2"
+                  className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-lg text-sm mb-2"
                 >
                   {s.name}
                 </div>

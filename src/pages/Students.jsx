@@ -12,10 +12,12 @@ import {
 } from "firebase/firestore";
 import Navbar from "../components/Navbar";
 import Card from "../components/Card";
+import Modal from "../components/Modal";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const studentsRef = collection(db, "students");
 const batchesRef = collection(db, "batches");
+const attendanceRef = collection(db, "attendance");
 
 export default function Students() {
   const [students, setStudents] = useState([]);
@@ -39,6 +41,9 @@ export default function Students() {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
   const [filter, setFilter] = useState("all");
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [attendanceData, setAttendanceData] = useState([]);
+  // const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   /* ================= FETCH ================= */
 
@@ -74,6 +79,23 @@ export default function Students() {
       setSearch(searchParam);
     }
   }, [location.search]);
+
+  useEffect(() => {
+    if (!selectedStudent) return;
+
+    const fetchAttendance = async () => {
+      const snap = await getDocs(attendanceRef);
+
+      const filtered = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((a) => a.studentId === selectedStudent.id)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      setAttendanceData(filtered);
+    };
+
+    fetchAttendance();
+  }, [selectedStudent]);
 
   /* ================= ACTIVE COUNTS ================= */
 
@@ -147,8 +169,7 @@ export default function Students() {
       const newBatch = {
         batchName: batch,
         type,
-        classDays,
-        schedule, // added
+        schedule,
         createdAt: serverTimestamp(),
       };
 
@@ -245,8 +266,8 @@ export default function Students() {
         const batchMatch = s.batchName?.toLowerCase().includes(term);
         const typeMatch = s.type?.toLowerCase().includes(term);
 
-        const dayMatch = batch?.classDays?.some((day) =>
-          day.toLowerCase().includes(term),
+        const dayMatch = batch?.schedule?.some((s) =>
+          s.day?.toLowerCase().includes(term),
         );
 
         return nameMatch || batchMatch || typeMatch || dayMatch;
@@ -256,23 +277,98 @@ export default function Students() {
     return result;
   }, [students, batches, filter, search]);
 
+  const [openMonths, setOpenMonths] = useState({});
+
+  const personalMonthlyAttendance = useMemo(() => {
+    if (!selectedStudent || selectedStudent.type !== "personal") return {};
+
+    const grouped = {};
+
+    attendanceData.forEach((a) => {
+      const dateObj = new Date(a.date);
+
+      const monthKey = dateObj.toLocaleString("default", {
+        month: "long",
+        year: "numeric",
+      });
+
+      if (!grouped[monthKey]) grouped[monthKey] = [];
+
+      grouped[monthKey].push({
+        date: a.date,
+        status: "Present",
+      });
+    });
+
+    Object.keys(grouped).forEach((month) => {
+      grouped[month].sort((a, b) => new Date(a.date) - new Date(b.date));
+    });
+
+    return grouped;
+  }, [selectedStudent, attendanceData]);
+
+  const monthlyAttendance = useMemo(() => {
+    if (!selectedStudent || selectedStudent.type !== "external") return {};
+
+    const batchInfo = batches.find((b) => b.id === selectedStudent.batchId);
+
+    if (!batchInfo?.schedule?.length) return {};
+
+    const presentDates = attendanceData.map((a) => a.date);
+
+    const grouped = {};
+
+    const today = new Date();
+
+    // Start from first attendance or today if none
+    const startDate = attendanceData.length
+      ? new Date(attendanceData[attendanceData.length - 1].date)
+      : today;
+
+    for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+      const dayName = d.toLocaleDateString("en-US", {
+        weekday: "short",
+      });
+
+      const isScheduled = batchInfo.schedule.some((s) => s.day === dayName);
+
+      if (!isScheduled) continue;
+
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+      const monthKey = d.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      });
+
+      if (!grouped[monthKey]) grouped[monthKey] = [];
+
+      grouped[monthKey].push({
+        date: iso,
+        status: presentDates.includes(iso) ? "Present" : "Absent",
+      });
+    }
+
+    return grouped;
+  }, [selectedStudent, attendanceData, batches]);
+
   /* ================= UI ================= */
 
   return (
     <>
       <Navbar />
 
-      <div className="min-h-screen bg-slate-50 px-4 sm:px-6 lg:px-10 xl:px-12 py-8 sm:py-10">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 px-4 sm:px-6 lg:px-10 xl:px-12 py-8 sm:py-10">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8 lg:gap-12">
           {/* ADD PANEL */}
-          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8">
+          <div className="bg-white/90 backdrop-blur-md rounded-3xl shadow-md border border-blue-100 p-6 sm:p-8">
             <h2 className="text-xl sm:text-2xl font-semibold mb-6 sm:mb-8">
               Add Student
             </h2>
 
             <form onSubmit={handleAdd} className="space-y-4 sm:space-y-5">
               <textarea
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm sm:text-base"
+                className="w-full border border-blue-200 rounded-xl px-4 py-3 text-sm sm:text-base bg-white focus:ring-2 focus:ring-blue-300 outline-none"
                 placeholder="Student Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -286,7 +382,7 @@ export default function Students() {
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full border rounded-xl px-4 py-3"
+                className="w-full border border-blue-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
               >
                 <option value="external">External</option>
                 <option value="personal">Personal</option>
@@ -298,10 +394,10 @@ export default function Students() {
                     <button
                       type="button"
                       onClick={() => toggleDay(day)}
-                      className={`px-3 py-1 rounded-full border ${
+                      className={`px-3 py-1 rounded-full border transition-all duration-200 ${
                         classDays.includes(day)
-                          ? "bg-indigo-600 text-white"
-                          : "bg-white"
+                          ? "bg-blue-500 text-white shadow-md border-blue-500"
+                          : "bg-white border-blue-200 hover:bg-blue-50"
                       }`}
                     >
                       {day}
@@ -317,7 +413,7 @@ export default function Students() {
                             [day]: e.target.value,
                           })
                         }
-                        className="border rounded-lg px-2 py-1"
+                        className="border border-blue-200 rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
                       />
                     )}
                   </div>
@@ -325,7 +421,7 @@ export default function Students() {
               </div>
 
               <input
-                className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                className="w-full border border-blue-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
                 value={batch}
                 onChange={(e) => setBatch(e.target.value)}
                 placeholder="Batch Name"
@@ -337,18 +433,18 @@ export default function Students() {
                   type="number"
                   value={reminderAfter}
                   onChange={(e) => setReminderAfter(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                  className="w-full border border-blue-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
                 />
               ) : (
                 <input
                   type="number"
                   value={sharePer8}
                   onChange={(e) => setSharePer8(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded-xl px-4 py-3"
+                  className="w-full border border-blue-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-blue-300 outline-none"
                 />
               )}
 
-              <button className="w-full bg-indigo-600 text-white py-3 rounded-xl">
+              <button className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl shadow-md transition-all duration-200">
                 Add Student
               </button>
             </form>
@@ -364,13 +460,13 @@ export default function Students() {
                 placeholder="Search by name, batch or type..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 pr-10 text-sm sm:text-base"
+                className="w-full border border-blue-200 rounded-xl px-4 py-3 pr-10 text-sm sm:text-base bg-white focus:ring-2 focus:ring-blue-300 outline-none"
               />
 
               {search && (
                 <button
                   onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black transition"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600 transition"
                 >
                   ✕
                 </button>
@@ -382,10 +478,10 @@ export default function Students() {
                 <button
                   key={cat}
                   onClick={() => setFilter(cat)}
-                  className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border ${
+                  className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border transition-all duration-200 ${
                     filter === cat
-                      ? "bg-black text-white border-black"
-                      : "bg-white border-gray-300"
+                      ? "bg-blue-500 text-white shadow-md border-blue-500"
+                      : "bg-white border-blue-200 hover:bg-blue-50"
                   }`}
                 >
                   {cat.charAt(0).toUpperCase() + cat.slice(1)} (
@@ -451,7 +547,10 @@ export default function Students() {
                                 </>
                               ) : (
                                 <>
-                                  <div className="text-base sm:text-lg font-semibold truncate">
+                                  <div
+                                    onClick={() => setSelectedStudent(s)}
+                                    className="text-base sm:text-lg font-semibold truncate cursor-pointer hover:text-blue-600 transition"
+                                  >
                                     {s.name}
                                   </div>
 
@@ -463,12 +562,16 @@ export default function Students() {
                                         )}`,
                                       )
                                     }
-                                    className="mt-2 text-sm text-slate-500 cursor-pointer hover:text-slate-700 transition"
+                                    className="mt-2 text-sm text-blue-500 cursor-pointer hover:text-blue-700 transition"
                                   >
                                     {s.batchName}
-                                    {batchInfo?.classDays?.length > 0 && (
+                                    {batchInfo?.schedule?.length > 0 && (
                                       <span className="ml-2 text-xs text-slate-400">
-                                        ({batchInfo.classDays.join(", ")})
+                                        (
+                                        {batchInfo.schedule
+                                          .map((s) => s.day)
+                                          .join(", ")}
+                                        )
                                       </span>
                                     )}
                                   </div>
@@ -478,8 +581,8 @@ export default function Students() {
 
                             <button
                               onClick={() => toggleActive(s)}
-                              className={`relative w-12 h-6 rounded-full flex-shrink-0 ${
-                                s.active ? "bg-emerald-500" : "bg-gray-400"
+                              className={`relative w-12 h-6 rounded-full flex-shrink-0 transition-all ${
+                                s.active ? "bg-blue-500" : "bg-gray-300"
                               }`}
                             >
                               <span
@@ -495,7 +598,7 @@ export default function Students() {
                               <>
                                 <button
                                   onClick={() => saveEdit(s)}
-                                  className="text-green-600"
+                                  className="text-blue-600 hover:underline"
                                 >
                                   Save
                                 </button>
@@ -510,13 +613,13 @@ export default function Students() {
                               <>
                                 <button
                                   onClick={() => startEdit(s)}
-                                  className="text-indigo-600"
+                                  className="text-blue-600 hover:underline"
                                 >
                                   Edit
                                 </button>
                                 <button
                                   onClick={() => handleDelete(s.id)}
-                                  className="text-red-600"
+                                  className="text-red-500 hover:underline"
                                 >
                                   Remove
                                 </button>
@@ -546,7 +649,10 @@ export default function Students() {
                         <Card inactive={!s.active}>
                           <div className="flex justify-between items-start mb-4 gap-3">
                             <div className="flex-1 min-w-0">
-                              <div className="text-base sm:text-lg font-semibold truncate">
+                              <div
+                                onClick={() => setSelectedStudent(s)}
+                                className="text-base sm:text-lg font-semibold truncate cursor-pointer hover:text-blue-600 transition"
+                              >
                                 {s.name}
                               </div>
                               <div
@@ -555,7 +661,7 @@ export default function Students() {
                                     `/batches?search=${encodeURIComponent(s.batchName)}`,
                                   )
                                 }
-                                className="mt-2 text-sm text-slate-500 cursor-pointer hover:text-slate-700 transition"
+                                className="mt-2 text-sm text-blue-500 cursor-pointer hover:text-blue-700 transition"
                               >
                                 {s.batchName}
                               </div>
@@ -563,8 +669,8 @@ export default function Students() {
 
                             <button
                               onClick={() => toggleActive(s)}
-                              className={`relative w-12 h-6 rounded-full flex-shrink-0 ${
-                                s.active ? "bg-emerald-500" : "bg-gray-400"
+                              className={`relative w-12 h-6 rounded-full flex-shrink-0 transition-all ${
+                                s.active ? "bg-blue-500" : "bg-gray-300"
                               }`}
                             >
                               <span
@@ -578,13 +684,13 @@ export default function Students() {
                           <div className="flex justify-between text-xs sm:text-sm">
                             <button
                               onClick={() => startEdit(s)}
-                              className="text-indigo-600"
+                              className="text-blue-600 hover:underline"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => handleDelete(s.id)}
-                              className="text-red-600"
+                              className="text-red-500 hover:underline"
                             >
                               Remove
                             </button>
@@ -598,6 +704,125 @@ export default function Students() {
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={!!selectedStudent}
+        onClose={() => setSelectedStudent(null)}
+        title={selectedStudent ? `Attendance – ${selectedStudent.name}` : ""}
+        size="lg"
+      >
+        {/* Total Present Count */}
+        <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+          <p className="text-sm text-slate-600">Total Present</p>
+          <p className="text-2xl font-semibold text-blue-600">
+            {selectedStudent?.type === "external"
+              ? Object.values(monthlyAttendance)
+                  .flat()
+                  .filter((r) => r.status === "Present").length
+              : Object.values(personalMonthlyAttendance).flat().length}
+          </p>
+        </div>
+
+        {
+          <div className="space-y-4">
+            {Object.entries(
+              selectedStudent?.type === "external"
+                ? monthlyAttendance
+                : personalMonthlyAttendance,
+            ).map(([month, records]) => (
+              <div key={month} className="border rounded-xl overflow-hidden">
+                <button
+                  onClick={() =>
+                    setOpenMonths((prev) => ({
+                      ...prev,
+                      [month]: !prev[month],
+                    }))
+                  }
+                  className="w-full text-left px-4 py-3 bg-blue-50 font-semibold flex justify-between"
+                >
+                  {month}
+                  <span>{openMonths[month] ? "−" : "+"}</span>
+                </button>
+
+                {openMonths[month] && (
+                  <div className="p-4">
+                    {(() => {
+                      if (!records.length) return null;
+
+                      const firstDate = new Date(records[0].date);
+                      const year = firstDate.getFullYear();
+                      const monthIndex = firstDate.getMonth();
+
+                      const daysInMonth = new Date(
+                        year,
+                        monthIndex + 1,
+                        0,
+                      ).getDate();
+
+                      const firstDayOfWeek = new Date(
+                        year,
+                        monthIndex,
+                        1,
+                      ).getDay();
+
+                      const statusMap = {};
+                      records.forEach((r) => {
+                        statusMap[r.date] = r.status;
+                      });
+
+                      const cells = [];
+
+                      for (let i = 0; i < firstDayOfWeek; i++) {
+                        cells.push(<div key={`empty-${i}`} />);
+                      }
+
+                      for (let d = 1; d <= daysInMonth; d++) {
+                        const dateObj = new Date(year, monthIndex, d);
+                        const iso = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
+                        const status = statusMap[iso];
+
+                        cells.push(
+                          <div
+                            key={d}
+                            className={`h-12 flex items-center justify-center text-[14px] rounded-md border transition-all
+                    ${
+                      status === "Present"
+                        ? "bg-green-500 text-white border-green-500"
+                        : "bg-white border-blue-100"
+                    }`}
+                          >
+                            {d}
+                          </div>,
+                        );
+                      }
+
+                      return (
+                        <div>
+                          <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-slate-500 mb-2">
+                            {[
+                              "Sun",
+                              "Mon",
+                              "Tue",
+                              "Wed",
+                              "Thu",
+                              "Fri",
+                              "Sat",
+                            ].map((day) => (
+                              <div key={day}>{day}</div>
+                            ))}
+                          </div>
+
+                          <div className="grid grid-cols-7 gap-1">{cells}</div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        }
+      </Modal>
     </>
   );
 }

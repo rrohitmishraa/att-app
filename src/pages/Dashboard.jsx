@@ -298,29 +298,45 @@ export default function Dashboard() {
     }
   };
 
+  /* ================= TIME FORMAT ================= */
+
+  const formatToAMPM = (timeStr) => {
+    if (!timeStr) return "";
+
+    const [hourStr, minuteStr] = timeStr.split(":");
+    let hour = parseInt(hourStr, 10);
+    const minutes = minuteStr;
+
+    const ampm = hour >= 12 ? "PM" : "AM";
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+
+    return `${hour}:${minutes} ${ampm}`;
+  };
+
   return (
     <>
       <Navbar />
 
-      <div className="min-h-screen bg-slate-50 px-6 py-10">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 px-6 py-10">
         <div className="max-w-7xl mx-auto space-y-12">
           {/* ================= KPI STRIP ================= */}
           <div className="grid md:grid-cols-4 gap-6">
             {/* Revenue */}
             <div
               onClick={() => setRevenueModal(true)}
-              className="bg-white border rounded-2xl p-6 shadow-sm cursor-pointer hover:shadow-md transition"
+              className="bg-blue-50 rounded-3xl p-6 shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
             >
               <p className="text-sm text-gray-500">This Month Revenue</p>
-              <p className="text-2xl font-semibold mt-2">
+              <p className="text-3xl font-semibold mt-2 text-black tracking-tight">
                 ₹{Number(currentMonthRevenue?.grandTotal || 0).toFixed(0)}
               </p>
             </div>
 
             {/* Active Students */}
-            <div className="bg-white border rounded-2xl p-6 shadow-sm">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
               <p className="text-sm text-gray-500">Active Students</p>
-              <p className="text-2xl font-semibold mt-2">
+              <p className="text-3xl font-semibold mt-2 text-black tracking-tight">
                 {activeStudents.length}
               </p>
               <p className="text-sm text-gray-600 mt-2">
@@ -329,15 +345,15 @@ export default function Dashboard() {
             </div>
 
             {/* Personal Pending */}
-            <div className="bg-white border rounded-2xl p-6 shadow-sm">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
               <p className="text-sm text-gray-500">Personal Payment Pending</p>
-              <p className="text-2xl font-semibold mt-2 text-red-600">
+              <p className="text-3xl font-semibold mt-2 text-red-500 tracking-tight">
                 {personalPending.length}
               </p>
             </div>
 
             {/* External Completed */}
-            <div className="bg-white border rounded-2xl p-6 shadow-sm">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
               <p className="text-sm text-gray-500">External Cycle Status</p>
 
               <div className="mt-3 flex justify-between items-center">
@@ -360,13 +376,15 @@ export default function Dashboard() {
 
           {/* ================= TODAY ================= */}
           <div>
-            <h2 className="text-xl font-semibold mb-6">Today's Classes</h2>
+            <h2 className="text-2xl font-semibold mb-6 text-black tracking-tight">
+              Today's Classes
+            </h2>
 
             <div className="grid md:grid-cols-2 gap-6">
               {todayBatches.map((batch) => (
                 <div
                   key={batch.id}
-                  className="bg-white border rounded-2xl p-6 shadow-sm"
+                  className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-md hover:shadow-lg transition-all duration-300"
                 >
                   <h3 className="font-semibold text-lg">{batch.batchName}</h3>
 
@@ -376,7 +394,7 @@ export default function Dashboard() {
                     {batch.students.map((s) => (
                       <span
                         key={s.id}
-                        className="text-sm px-3 py-1 rounded-full bg-slate-100 border"
+                        className="text-sm px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-medium"
                       >
                         {s.name}
                       </span>
@@ -389,13 +407,15 @@ export default function Dashboard() {
 
           {/* ================= TOMORROW ================= */}
           <div>
-            <h2 className="text-xl font-semibold mb-6">Tomorrow's Schedule</h2>
+            <h2 className="text-2xl font-semibold mb-6 text-black tracking-tight">
+              Tomorrow's Schedule
+            </h2>
 
             <div className="grid md:grid-cols-2 gap-6">
               {tomorrowBatches.map((batch) => (
                 <div
                   key={batch.id}
-                  className="bg-white border rounded-2xl p-6 shadow-sm"
+                  className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-md hover:shadow-lg transition-all duration-300"
                 >
                   <h3 className="font-semibold text-lg">{batch.batchName}</h3>
 
@@ -405,7 +425,7 @@ export default function Dashboard() {
                     {batch.students.map((s) => (
                       <span
                         key={s.id}
-                        className="text-sm px-3 py-1 rounded-full bg-slate-100 border"
+                        className="text-sm px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-medium"
                       >
                         {s.name}
                       </span>
@@ -419,7 +439,7 @@ export default function Dashboard() {
           {/* ================= ALERTS SECTION ================= */}
           <div className="grid lg:grid-cols-2 gap-8">
             {/* Personal Pending List */}
-            <div className="bg-white border rounded-2xl p-6 shadow-sm">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
               <h3 className="font-semibold mb-4 text-red-600">
                 Personal - Payment Pending
               </h3>
@@ -436,73 +456,126 @@ export default function Dashboard() {
             </div>
 
             {/* External Cycle Status Table */}
-            <div className="bg-white border rounded-2xl p-6 shadow-sm">
-              <h3 className="font-semibold mb-4 text-blue-600">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
+              <h3 className="font-semibold mb-6 text-blue-600">
                 External - Cycle Status
               </h3>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="border px-3 py-2 text-left">Student</th>
-                      <th className="border px-3 py-2 text-center">
-                        Completed
-                      </th>
-                      <th className="border px-3 py-2 text-center">
-                        Remaining
-                      </th>
-                      <th className="border px-3 py-2 text-left">Upcoming</th>
-                      <th className="border px-3 py-2 text-center">Status</th>
-                    </tr>
-                  </thead>
+              {batches
+                .filter((b) => b.type === "external")
+                .map((batch) => {
+                  const batchStudents = activeStudents.filter(
+                    (s) => s.type === "external" && s.batchId === batch.id,
+                  );
 
-                  <tbody>
-                    {activeStudents
-                      .filter((s) => s.type === "external")
-                      .map((s) => {
-                        const completed = s.totalClassesCompleted || 0;
-                        const remainder = completed % 8;
-                        const remaining = remainder === 0 ? 0 : 8 - remainder;
+                  if (batchStudents.length === 0) return null;
 
-                        const upcoming =
-                          remaining > 0 && remaining <= 2
-                            ? getNextClassDates(s, remaining)
-                            : [];
+                  return (
+                    <div key={batch.id} className="mb-8">
+                      {/* Batch Header */}
+                      <div className="mb-4 border-b pb-3">
+                        {/* Batch Name */}
+                        <h4 className="font-semibold text-base text-gray-800">
+                          {batch.batchName}
+                        </h4>
 
-                        return (
-                          <tr key={s.id}>
-                            <td className="border px-3 py-2">{s.name}</td>
+                        {/* Batch Schedule */}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {batch.schedule
+                            ?.sort(
+                              (a, b) =>
+                                DAYS.indexOf(a.day) - DAYS.indexOf(b.day),
+                            )
+                            .map((s, i) => (
+                              <span
+                                key={i}
+                                className="px-3 py-1 bg-blue-100 rounded-full text-xs text-blue-700 font-medium"
+                              >
+                                {s.day} {formatToAMPM(s.time)}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
 
-                            <td className="border px-3 py-2 text-center">
-                              {remainder}
-                            </td>
+                      <div className="overflow-x-auto rounded-2xl shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-blue-50">
+                            <tr>
+                              <th className="px-4 py-3 text-sm font-medium text-gray-700 text-center">
+                                Status
+                              </th>
+                              <th className="px-4 py-3 text-sm font-medium text-gray-700 text-left">
+                                Student
+                              </th>
+                              <th className="px-4 py-3 text-sm font-medium text-gray-700 text-center">
+                                Completed
+                              </th>
+                              <th className="px-4 py-3 text-sm font-medium text-gray-700 text-center">
+                                Remaining
+                              </th>
+                              <th className="px-4 py-3 text-sm font-medium text-gray-700 text-left">
+                                Upcoming
+                              </th>
+                            </tr>
+                          </thead>
 
-                            <td className="border px-3 py-2 text-center">
-                              {remaining}
-                            </td>
+                          <tbody>
+                            {batchStudents.map((s) => {
+                              const completed = s.totalClassesCompleted || 0;
+                              const remainder = completed % 8;
+                              const remaining =
+                                remainder === 0 ? 0 : 8 - remainder;
 
-                            <td className="border px-3 py-2 text-xs text-gray-600">
-                              {upcoming.length > 0 ? upcoming.join(", ") : "-"}
-                            </td>
+                              const upcoming =
+                                remaining > 0 && remaining <= 2
+                                  ? getNextClassDates(s, remaining)
+                                  : [];
 
-                            <td className="border px-3 py-2 text-center">
-                              {remaining === 0 ? (
-                                <span className="text-green-600 font-semibold">
-                                  Completed
-                                </span>
-                              ) : (
-                                <span className="text-red-600 font-semibold">
-                                  Pending
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
+                              const isCompleted = remaining === 0;
+
+                              return (
+                                <tr
+                                  key={s.id}
+                                  className="hover:bg-blue-50 transition-colors"
+                                >
+                                  <td className="px-4 py-3 text-sm text-gray-800 text-center">
+                                    {isCompleted ? (
+                                      <span className="text-green-600 font-semibold">
+                                        Completed
+                                      </span>
+                                    ) : (
+                                      <span className="text-red-600 font-semibold">
+                                        Pending
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  <td className="px-4 py-3 text-sm text-gray-800">
+                                    {s.name}
+                                  </td>
+
+                                  <td className="px-4 py-3 text-sm text-gray-800 text-center">
+                                    {remainder}
+                                  </td>
+
+                                  <td className="px-4 py-3 text-sm text-gray-800 text-center">
+                                    {remaining}
+                                  </td>
+
+                                  <td className="px-4 py-3 text-sm text-gray-800 text-xs text-gray-600">
+                                    {upcoming.length > 0
+                                      ? upcoming.join(", ")
+                                      : "-"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         </div>
@@ -521,7 +594,7 @@ export default function Dashboard() {
         <div className="flex justify-end mb-4">
           <button
             onClick={handleExport}
-            className="px-4 py-2 bg-black text-white rounded-lg"
+            className="px-5 py-2.5 bg-black text-white rounded-full shadow-md hover:shadow-lg transition-all duration-200"
           >
             Screenshot
           </button>
@@ -531,7 +604,7 @@ export default function Dashboard() {
         <div className="flex justify-end mb-4">
           <button
             onClick={() => setCompactView((prev) => !prev)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+            className="px-5 py-2.5 bg-blue-500 text-white rounded-full shadow-md hover:shadow-lg transition-all duration-200"
           >
             {compactView ? "Show Detailed View" : "Hide Fee Details"}
           </button>
@@ -539,22 +612,30 @@ export default function Dashboard() {
 
         <div className="overflow-auto max-h-[75vh]">
           <table className="w-full text-sm border-collapse">
-            <thead className="bg-gray-50 sticky top-0">
+            <thead className="bg-blue-50 sticky top-0">
               <tr>
-                <th className="border px-4 py-3 text-left">Batch</th>
-                <th className="border px-4 py-3 text-left">Student</th>
-                <th className="border px-4 py-3 text-center">Classes</th>
+                <th className="px-4 py-3 text-sm font-medium text-gray-700 text-left">
+                  Batch
+                </th>
+                <th className="px-4 py-3 text-sm font-medium text-gray-700 text-left">
+                  Student
+                </th>
+                <th className="px-4 py-3 text-sm font-medium text-gray-700 text-center">
+                  Classes
+                </th>
 
                 {!compactView && (
                   <>
-                    <th className="border px-4 py-3 text-right">
+                    <th className="px-4 py-3 text-sm font-medium text-gray-700 text-right">
                       Per Month (8)
                     </th>
-                    <th className="border px-4 py-3 text-right">Per Class</th>
+                    <th className="px-4 py-3 text-sm font-medium text-gray-700 text-right">
+                      Per Class
+                    </th>
                   </>
                 )}
 
-                <th className="border px-4 py-3 text-right">
+                <th className="px-4 py-3 text-sm font-medium text-gray-700 text-right">
                   Earned (This Month)
                 </th>
               </tr>
@@ -573,28 +654,30 @@ export default function Dashboard() {
                       key={s.id}
                       className={`${batchColor} hover:bg-opacity-70`}
                     >
-                      <td className="border px-4 py-3 font-medium">
+                      <td className="px-4 py-3 text-sm text-gray-800 font-medium">
                         {index === 0 ? batch.batchName : ""}
                       </td>
 
-                      <td className="border px-4 py-3">{s.name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-800">
+                        {s.name}
+                      </td>
 
-                      <td className="border px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-sm text-gray-800 text-center">
                         {s.classCount}
                       </td>
 
                       {!compactView && (
                         <>
-                          <td className="border px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-sm text-gray-800 text-right">
                             ₹{Math.round(perMonth)}
                           </td>
-                          <td className="border px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-sm text-gray-800 text-right">
                             ₹{Math.round(perClass)}
                           </td>
                         </>
                       )}
 
-                      <td className="border px-4 py-3 text-right font-semibold">
+                      <td className="px-4 py-3 text-sm text-gray-800 text-right font-semibold">
                         ₹{Math.round(s.earned || 0)}
                       </td>
                     </tr>
@@ -603,22 +686,20 @@ export default function Dashboard() {
               )}
 
               {/* Grand Total */}
-              <tr className="bg-yellow-200 font-bold text-lg">
-                <td className="border border-yellow-400 px-4 py-4">
-                  Grand Total
-                </td>
+              <tr className="bg-blue-100 font-semibold text-lg">
+                <td className="px-4 py-4 text-sm text-gray-800">Grand Total</td>
 
-                <td className="border border-yellow-400 px-4 py-4"></td>
-                <td className="border border-yellow-400 px-4 py-4"></td>
+                <td className="px-4 py-4 text-sm text-gray-800"></td>
+                <td className="px-4 py-4 text-sm text-gray-800"></td>
 
                 {!compactView && (
                   <>
-                    <td className="border border-yellow-400 px-4 py-4"></td>
-                    <td className="border border-yellow-400 px-4 py-4"></td>
+                    <td className="px-4 py-4 text-sm text-gray-800"></td>
+                    <td className="px-4 py-4 text-sm text-gray-800"></td>
                   </>
                 )}
 
-                <td className="border border-yellow-400 px-4 py-4 text-right text-xl">
+                <td className="px-4 py-4 text-sm text-gray-800 text-right text-xl">
                   ₹{Math.round(currentMonthRevenue?.grandTotal || 0)}
                 </td>
               </tr>
@@ -628,7 +709,7 @@ export default function Dashboard() {
           {/* HEDDEN EXPORT BLOCK */}
           <div
             ref={exportRef}
-            className="fixed -left-[9999px] top-0 w-[1200px] bg-white p-10"
+            className="fixed -left-[9999px] top-0 w-[1200px] bg-white p-12 rounded-2xl"
           >
             <h2 className="text-2xl font-semibold mb-6">
               Revenue Breakdown – {currentMonthLabel}
@@ -637,10 +718,18 @@ export default function Dashboard() {
             <table className="w-full text-sm border-collapse">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="border px-4 py-3 text-left">Batch</th>
-                  <th className="border px-4 py-3 text-left">Student</th>
-                  <th className="border px-4 py-3 text-center">Classes</th>
-                  <th className="border px-4 py-3 text-right">Fees</th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-700 text-left">
+                    Batch
+                  </th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-700 text-left">
+                    Student
+                  </th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-700 text-center">
+                    Classes
+                  </th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-700 text-right">
+                    Fees
+                  </th>
                 </tr>
               </thead>
 
@@ -651,17 +740,19 @@ export default function Dashboard() {
 
                     return (
                       <tr key={s.id} className={batchColor}>
-                        <td className="border px-4 py-3">
+                        <td className="px-4 py-3 text-sm text-gray-800">
                           {index === 0 ? batch.batchName : ""}
                         </td>
 
-                        <td className="border px-4 py-3">{s.name}</td>
+                        <td className="px-4 py-3 text-sm text-gray-800">
+                          {s.name}
+                        </td>
 
-                        <td className="border px-4 py-3 text-center">
+                        <td className="px-4 py-3 text-sm text-gray-800 text-center">
                           {s.classCount}
                         </td>
 
-                        <td className="border px-4 py-3 text-right">
+                        <td className="px-4 py-3 text-sm text-gray-800 text-right">
                           ₹{Math.round(s.earned || 0)}
                         </td>
                       </tr>
@@ -669,11 +760,13 @@ export default function Dashboard() {
                   }),
                 )}
 
-                <tr className="bg-yellow-200 font-bold text-lg">
-                  <td className="border px-4 py-4">Grand Total</td>
-                  <td className="border px-4 py-4"></td>
-                  <td className="border px-4 py-4"></td>
-                  <td className="border px-4 py-4 text-right">
+                <tr className="bg-blue-100 font-semibold text-lg">
+                  <td className="px-4 py-4 text-sm text-gray-800">
+                    Grand Total
+                  </td>
+                  <td className="px-4 py-4 text-sm text-gray-800"></td>
+                  <td className="px-4 py-4 text-sm text-gray-800"></td>
+                  <td className="px-4 py-4 text-sm text-gray-800 text-right">
                     ₹{Math.round(currentMonthRevenue?.grandTotal || 0)}
                   </td>
                 </tr>

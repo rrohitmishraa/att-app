@@ -24,46 +24,48 @@ export default function Modal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
         >
-          {/* Overlay */}
           <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/30 backdrop-blur-md"
             onClick={onClose}
           />
 
-          {/* Modal Panel */}
           <motion.div
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 40, opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            initial={{ y: 40, opacity: 0, scale: 0.98 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 40, opacity: 0, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 260, damping: 22 }}
             className={`
-              relative bg-white
+              relative
+              bg-white/90 backdrop-blur-xl
               w-full h-[92vh]
               sm:w-[95%] sm:h-auto
               ${sizeClasses[size]}
-              rounded-t-2xl sm:rounded-2xl
-              shadow-2xl
-              p-4 sm:p-6
+              rounded-t-3xl sm:rounded-3xl
+              shadow-xl shadow-black/10
+              p-5 sm:p-8
               z-10
               flex flex-col
               max-h-[92vh]
               overflow-hidden
             `}
           >
-            {/* Header */}
             {title && (
-              <h3 className="text-lg font-semibold mb-4 shrink-0">{title}</h3>
+              <div className="mb-6 shrink-0">
+                <h3 className="text-2xl font-semibold text-gray-900 tracking-tight">
+                  {title}
+                </h3>
+                <div className="mt-2 h-[2px] w-12 bg-blue-500 rounded-full" />
+              </div>
             )}
 
-            {/* Scrollable Body */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden pr-1">
               {children}
             </div>
 
-            {/* Footer */}
             {footer && (
-              <div className="mt-6 flex justify-end gap-3 shrink-0">
+              <div className="mt-8 flex justify-end gap-3 shrink-0 pt-4 border-t border-gray-100">
                 {footer}
               </div>
             )}

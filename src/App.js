@@ -1,19 +1,42 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import Login from "./pages/Login";
-import ProtectedRoute from "./components/ProtectedRoute";
-import PublicRoute from "./components/PublicRoute";
 
-// pages
+import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import DashboardShare from "./pages/DashboardShare";
 import Students from "./pages/Students";
 import Attendance from "./pages/Attendance";
 import Batches from "./pages/Batches";
+import PublicAttendance from "./pages/PublicAttendance";
+
+import ProtectedRoute from "./components/ProtectedRoute";
+import PublicRoute from "./components/PublicRoute";
+import { useEffect, useState } from "react";
 
 export default function App() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+  useEffect(() => {
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    });
+  }, []);
+
+  deferredPrompt && (
+    <button
+      onClick={() => {
+        deferredPrompt.prompt();
+        setDeferredPrompt(null);
+      }}
+      className="fixed bottom-6 right-6 bg-black text-white px-4 py-2 rounded-lg"
+    >
+      Install App
+    </button>
+  );
+
   return (
     <Routes>
-      {/* Public */}
+      {/* ===== PUBLIC ROUTES ===== */}
+
       <Route
         path="/login"
         element={
@@ -22,9 +45,12 @@ export default function App() {
           </PublicRoute>
         }
       />
-      <Route path="/dashboard/share" element={<DashboardShare />} />
 
-      {/* Protected */}
+      {/* Public student attendance check */}
+      <Route path="/check" element={<PublicAttendance />} />
+
+      {/* ===== PROTECTED ROUTES ===== */}
+
       <Route
         path="/dashboard"
         element={
@@ -61,8 +87,13 @@ export default function App() {
         }
       />
 
-      {/* Default redirect */}
-      <Route path="/" element={<Navigate to="/dashboard" />} />
+      {/* ===== DEFAULT ROUTE ===== */}
+
+      {/* If someone lands on "/" → send them to public check page */}
+      <Route path="/" element={<Navigate to="/check" />} />
+
+      {/* Catch all unknown routes */}
+      <Route path="*" element={<Navigate to="/check" />} />
     </Routes>
   );
 }

@@ -301,7 +301,7 @@ export default function Attendance() {
 
   /* ================= SORTING ================= */
 
-  const { todayBatches } = useMemo(() => {
+  const { todayBatches, otherBatches } = useMemo(() => {
     const currentDate = new Date(selectedDate);
     const todayIndex = currentDate.getDay();
     const todayName = DAYS[todayIndex];
@@ -328,7 +328,10 @@ export default function Attendance() {
 
     const upcomingList = mapped.filter((b) => b.todayTime === null);
 
-    return { todayBatches: todayList, upcomingBatches: upcomingList };
+    return {
+      todayBatches: todayList,
+      otherBatches: upcomingList,
+    };
   }, [batches, students, selectedDate]);
 
   /* ================= UI ================= */
@@ -339,13 +342,13 @@ export default function Attendance() {
 
     return (
       <div
-        className={`border-2 rounded-2xl p-6 shadow-sm bg-white ${
+        className={`rounded-3xl p-6 bg-white/90 backdrop-blur-md shadow-md border ${
           batch.type === "external"
-            ? "border-red-500"
+            ? "border-red-400"
             : batch.type === "personal"
-              ? "border-blue-500"
-              : "border-slate-200"
-        } ${highlight ? "ring-2 ring-orange-400" : ""}`}
+              ? "border-blue-300"
+              : "border-blue-100"
+        } ${highlight ? "ring-2 ring-red-300" : ""}`}
       >
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -403,7 +406,7 @@ export default function Attendance() {
             return (
               <div
                 key={student.id}
-                className="flex justify-between items-center border rounded-xl px-4 py-4 bg-slate-50 border-slate-200"
+                className="flex justify-between items-center rounded-2xl px-4 py-4 bg-blue-50/60 border border-blue-100 shadow-sm hover:shadow-md transition-all duration-200"
               >
                 <div className="flex flex-col">
                   <span className="font-medium">{student.name}</span>
@@ -444,8 +447,10 @@ export default function Attendance() {
                   <button
                     disabled={loadingStudent === student.id}
                     onClick={() => markAttendance(student)}
-                    className={`p-2 rounded-lg ${
-                      marked ? "bg-green-600 text-white" : "bg-black text-white"
+                    className={`p-2 rounded-xl transition-all duration-200 ${
+                      marked
+                        ? "bg-blue-500 text-white shadow-md"
+                        : "bg-black text-white hover:bg-blue-600"
                     }`}
                   >
                     <Check size={16} />
@@ -454,7 +459,7 @@ export default function Attendance() {
                   {marked && (
                     <button
                       onClick={() => undoAttendance(student)}
-                      className="p-2 rounded-lg bg-red-500 text-white"
+                      className="p-2 rounded-xl bg-red-500 text-white shadow-md hover:bg-red-600 transition-all"
                     >
                       <Undo2 size={16} />
                     </button>
@@ -462,7 +467,7 @@ export default function Attendance() {
 
                   <button
                     onClick={() => resetStudentClasses(student)}
-                    className="p-2 rounded-lg bg-yellow-500 text-white text-xs"
+                    className="p-2 rounded-xl bg-blue-100 text-blue-700 text-xs hover:bg-blue-200 transition-all"
                   >
                     Reset
                   </button>
@@ -479,9 +484,9 @@ export default function Attendance() {
     <>
       <Navbar />
 
-      <div className="min-h-screen bg-slate-50 px-6 py-12">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 px-6 py-12">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-[320px_1fr] gap-16">
-          <div className="lg:sticky lg:top-12 h-fit bg-white p-6 rounded-2xl border">
+          <div className="lg:sticky lg:top-12 h-fit bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-blue-100 shadow-md">
             <h2 className="text-xl font-semibold mb-4">Select Date</h2>
 
             {/* ===== FULL MONTH CALENDAR ===== */}
@@ -573,8 +578,8 @@ export default function Attendance() {
                           onClick={() => setSelectedDate(iso)}
                           className={`h-8 text-xs rounded-lg ${
                             isSelected
-                              ? "bg-black text-white"
-                              : "hover:bg-slate-200"
+                              ? "bg-blue-500 text-white shadow-md"
+                              : "hover:bg-blue-100"
                           }`}
                         >
                           {day.getDate()}
@@ -597,11 +602,25 @@ export default function Attendance() {
 
             {todayBatches.length > 0 && (
               <>
-                <h2 className="text-sm font-semibold text-green-600 uppercase tracking-wider mb-4">
+                <h2 className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-4">
                   Today
                 </h2>
                 <div className="space-y-10">
                   {todayBatches.map((batch) => (
+                    <BatchBlock key={batch.id} batch={batch} />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {otherBatches.length > 0 && (
+              <>
+                <h2 className="text-sm font-semibold text-blue-400 uppercase tracking-wider mt-12 mb-4">
+                  Other Batches (Manual / Cover Class)
+                </h2>
+
+                <div className="space-y-10">
+                  {otherBatches.map((batch) => (
                     <BatchBlock key={batch.id} batch={batch} />
                   ))}
                 </div>
