@@ -11,7 +11,7 @@ export default function PublicAttendance() {
   const [result, setResult] = useState(null);
   const [expandedMonth, setExpandedMonth] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showChart, setShowChart] = useState(false);
+  const [showChart, setShowChart] = useState(true);
 
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
