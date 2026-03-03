@@ -562,7 +562,7 @@ export default function Dashboard() {
                                     {remaining}
                                   </td>
 
-                                  <td className="px-4 py-3 text-sm text-gray-800 text-xs text-gray-600">
+                                  <td className="px-4 py-3 text-sm text-gray-600">
                                     {upcoming.length > 0
                                       ? upcoming.join(", ")
                                       : "-"}
@@ -699,7 +699,7 @@ export default function Dashboard() {
                   </>
                 )}
 
-                <td className="px-4 py-4 text-sm text-gray-800 text-right text-xl">
+                <td className="px-4 py-4 text-sm text-gray-800 text-right">
                   ₹{Math.round(currentMonthRevenue?.grandTotal || 0)}
                 </td>
               </tr>

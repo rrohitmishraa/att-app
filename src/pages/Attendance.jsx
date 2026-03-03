@@ -112,8 +112,7 @@ export default function Attendance() {
 
     if (student.type === "external") {
       await updateDoc(doc(db, "students", student.id), {
-        totalClassesCompleted: 0,
-        classesCompleted: 0,
+        currentCycleCount: 0,
         externalAlert: false,
       });
     }
@@ -164,14 +163,22 @@ export default function Attendance() {
       return updated;
     });
 
-    /* ===== EXTERNAL (FIXED CYCLE LOGIC) ===== */
+    /* ===== EXTERNAL (CYCLE WITHOUT AUTO RESET) ===== */
     if (student.type === "external") {
+      const currentCycle = student.currentCycleCount || 0;
+
+      // Prevent going beyond 8 until manually reset
+      if (currentCycle >= 8) {
+        setLoadingStudent(null);
+        return;
+      }
+
       const newTotal = (student.totalClassesCompleted || 0) + 1;
-      const newCompleted = newTotal % 8;
+      const newCycle = currentCycle + 1;
 
       await updateDoc(doc(db, "students", student.id), {
         totalClassesCompleted: newTotal,
-        classesCompleted: newCompleted,
+        currentCycleCount: newCycle,
       });
 
       setStudents((prev) =>
@@ -180,13 +187,13 @@ export default function Attendance() {
             ? {
                 ...s,
                 totalClassesCompleted: newTotal,
-                classesCompleted: newCompleted,
+                currentCycleCount: newCycle,
               }
             : s,
         ),
       );
 
-      if (newCompleted === 0) {
+      if (newCycle === 8) {
         await updateDoc(doc(db, "students", student.id), {
           externalAlert: true,
         });
@@ -246,11 +253,12 @@ export default function Attendance() {
 
     if (student.type === "external") {
       const newTotal = Math.max(0, (student.totalClassesCompleted || 0) - 1);
-      const newCompleted = newTotal % 8;
+      const newCycle = Math.max(0, (student.currentCycleCount || 0) - 1);
 
       await updateDoc(doc(db, "students", student.id), {
         totalClassesCompleted: newTotal,
-        classesCompleted: newCompleted,
+        currentCycleCount: newCycle,
+        externalAlert: newCycle === 8,
       });
 
       setStudents((prev) =>
@@ -259,23 +267,12 @@ export default function Attendance() {
             ? {
                 ...s,
                 totalClassesCompleted: newTotal,
-                classesCompleted: newCompleted,
+                currentCycleCount: newCycle,
+                externalAlert: newCycle === 8,
               }
             : s,
         ),
       );
-
-      if (newCompleted !== 0) {
-        await updateDoc(doc(db, "students", student.id), {
-          externalAlert: false,
-        });
-
-        setStudents((prev) =>
-          prev.map((s) =>
-            s.id === student.id ? { ...s, externalAlert: false } : s,
-          ),
-        );
-      }
     }
 
     if (student.type === "personal") {
@@ -413,7 +410,7 @@ export default function Attendance() {
 
                   {student.type === "external" && (
                     <span className="text-xs text-slate-600">
-                      {student.classesCompleted || 0} / 8 classes
+                      {student.currentCycleCount || 0} / 8 classes
                     </span>
                   )}
 

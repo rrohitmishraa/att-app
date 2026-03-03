@@ -37,6 +37,7 @@ export default function Navbar() {
     { to: "/students", label: "Students" },
     { to: "/batches", label: "Batches" },
     { to: "/attendance", label: "Attendance" },
+    { to: "/check", label: "Search" },
   ];
 
   return (
