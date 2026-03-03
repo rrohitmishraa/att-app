@@ -90,32 +90,6 @@ export default function PublicAttendance() {
       }
     });
 
-    Object.keys(monthMap).forEach((monthLabel) => {
-      const [monthName, year] = monthLabel.split(" ");
-      const monthIndex = new Date(`${monthName} 1, ${year}`).getMonth();
-      const yearNum = parseInt(year);
-
-      const scheduledDays = batch.schedule.map((s) => s.day);
-      const daysInMonth = new Date(yearNum, monthIndex + 1, 0).getDate();
-
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dateObj = new Date(yearNum, monthIndex, d);
-        const dayName = DAYS[dateObj.getDay()];
-
-        if (scheduledDays.includes(dayName)) {
-          const formatted = formatDateReadable(dateObj);
-
-          if (!monthMap[monthLabel].present.includes(formatted)) {
-            monthMap[monthLabel].absent.push(formatted);
-          }
-        }
-      }
-
-      // Sort dates ascending
-      monthMap[monthLabel].present.sort();
-      monthMap[monthLabel].absent.sort();
-    });
-
     const sortedMonths = Object.keys(monthMap).sort(
       (a, b) => new Date(b) - new Date(a),
     );
@@ -210,8 +184,7 @@ export default function PublicAttendance() {
                       <div>
                         <p className="font-semibold">{month}</p>
                         <p className="text-xs text-blue-500">
-                          Present: {data.present.length} | Absent:{" "}
-                          {data.absent.length}
+                          Present: {data.present.length}
                         </p>
                       </div>
                       <span>{isOpen ? "▲" : "▼"}</span>
@@ -339,11 +312,24 @@ export default function PublicAttendance() {
                         </thead>
                         <tbody>
                           {batchStudents.map((student) => {
+                            const now = new Date();
+                            const currentMonth = now.getMonth();
+                            const currentYear = now.getFullYear();
+
                             const studentAttendance = attendance.filter(
                               (a) => a.studentId === student.id,
                             );
 
-                            const presentCount = studentAttendance.length;
+                            const currentMonthAttendance =
+                              studentAttendance.filter((a) => {
+                                const date = new Date(a.date);
+                                return (
+                                  date.getMonth() === currentMonth &&
+                                  date.getFullYear() === currentYear
+                                );
+                              });
+
+                            const presentCount = currentMonthAttendance.length;
 
                             return (
                               <tr key={student.id}>
@@ -357,77 +343,76 @@ export default function PublicAttendance() {
                                   {studentAttendance.length === 0
                                     ? "—"
                                     : (() => {
+                                        const now = new Date();
+                                        const currentMonth = now.getMonth();
+                                        const currentYear = now.getFullYear();
+
                                         const dates = studentAttendance
                                           .map((a) => new Date(a.date))
+                                          .filter(
+                                            (d) =>
+                                              d.getMonth() === currentMonth &&
+                                              d.getFullYear() === currentYear,
+                                          )
                                           .sort((a, b) => a - b);
 
-                                        const grouped = {};
-                                        dates.forEach((d) => {
-                                          const key = `${d.getFullYear()}-${d.getMonth()}`;
-                                          if (!grouped[key]) grouped[key] = [];
-                                          grouped[key].push(d.getDate());
-                                        });
+                                        const firstDay = new Date(
+                                          currentYear,
+                                          currentMonth,
+                                          1,
+                                        );
+                                        const startDay = firstDay.getDay();
+                                        const daysInMonth = new Date(
+                                          currentYear,
+                                          currentMonth + 1,
+                                          0,
+                                        ).getDate();
 
-                                        return Object.entries(grouped).map(
-                                          ([key, days]) => {
-                                            const [year, month] = key
-                                              .split("-")
-                                              .map(Number);
-                                            const firstDay = new Date(
-                                              year,
-                                              month,
-                                              1,
-                                            );
-                                            const startDay = firstDay.getDay();
-                                            const daysInMonth = new Date(
-                                              year,
-                                              month + 1,
-                                              0,
-                                            ).getDate();
+                                        const presentDays = dates.map((d) =>
+                                          d.getDate(),
+                                        );
 
-                                            return (
-                                              <div key={key} className="mb-4">
-                                                <div className="font-semibold text-blue-600 mb-2">
-                                                  {firstDay.toLocaleString(
-                                                    "default",
-                                                    {
-                                                      month: "long",
-                                                      year: "numeric",
-                                                    },
-                                                  )}
-                                                </div>
+                                        return (
+                                          <div className="mb-4">
+                                            <div className="font-semibold text-blue-600 mb-2">
+                                              {firstDay.toLocaleString(
+                                                "default",
+                                                {
+                                                  month: "long",
+                                                  year: "numeric",
+                                                },
+                                              )}
+                                            </div>
 
-                                                <div className="grid grid-cols-7 gap-1 text-center text-[9px] sm:text-[10px]">
-                                                  {Array.from({
-                                                    length: startDay,
-                                                  }).map((_, i) => (
-                                                    <div key={`empty-${i}`} />
-                                                  ))}
+                                            <div className="grid grid-cols-7 gap-1 text-center text-[9px] sm:text-[10px]">
+                                              {Array.from({
+                                                length: startDay,
+                                              }).map((_, i) => (
+                                                <div key={`empty-${i}`} />
+                                              ))}
 
-                                                  {Array.from({
-                                                    length: daysInMonth,
-                                                  }).map((_, i) => {
-                                                    const day = i + 1;
-                                                    const isPresent =
-                                                      days.includes(day);
+                                              {Array.from({
+                                                length: daysInMonth,
+                                              }).map((_, i) => {
+                                                const day = i + 1;
+                                                const isPresent =
+                                                  presentDays.includes(day);
 
-                                                    return (
-                                                      <div
-                                                        key={day}
-                                                        className={`h-5 sm:h-6 flex items-center justify-center rounded text-[9px] sm:text-[10px] ${
-                                                          isPresent
-                                                            ? "bg-blue-500 text-white"
-                                                            : "text-gray-400"
-                                                        }`}
-                                                      >
-                                                        {day}
-                                                      </div>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </div>
-                                            );
-                                          },
+                                                return (
+                                                  <div
+                                                    key={day}
+                                                    className={`h-5 sm:h-6 flex items-center justify-center rounded text-[9px] sm:text-[10px] ${
+                                                      isPresent
+                                                        ? "bg-blue-500 text-white"
+                                                        : "text-gray-400"
+                                                    }`}
+                                                  >
+                                                    {day}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
                                         );
                                       })()}
                                 </td>
