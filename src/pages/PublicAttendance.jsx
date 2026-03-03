@@ -13,7 +13,7 @@ export default function PublicAttendance() {
   const [loading, setLoading] = useState(true);
   const [showChart, setShowChart] = useState(true);
 
-  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  // const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   useEffect(() => {
     const fetchData = async () => {
